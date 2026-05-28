@@ -22,6 +22,14 @@ window.CLIENTS_REGISTRY = [
     accent:   '#a86b14',
   },
   {
+    id:       'vpmarketing',
+    name:     'VP Marketing',
+    initials: 'VP',
+    sub:      'Agency · Quarterly priorities',
+    href:     'clients/vpmarketing.html',
+    accent:   '#2960ff',
+  },
+  {
     id:       'mlc',
     name:     'MLC',
     initials: 'ML',

@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  │  CRITICAL RULES — read CLAUDE.md before editing this file.           │
+  │                                                                      │
+  │  This client syncs via shared/sync.js, which mirrors any localStorage│
+  │  key matching pc-ops::* or __keep::* up to the Supabase planner_state│
+  │  table under client_id = window.CLIENT_DATA.id (here: 'vpmarketing').│
+  │                                                                      │
+  │  DO NOT:                                                             │
+  │    • Rename existing pc-ops::vpmarketing::* keys (orphans rows)      │
+  │    • Change CLIENT_DATA.id without migrating data first              │
+  │                                                                      │
+  │  FREE TO CHANGE: colours, fonts, layout, copy, section order, new    │
+  │  fields (use the pc-ops::vpmarketing::<feature>::v1 pattern so the   │
+  │  sync layer auto-catches them).                                      │
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VP Marketing — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="../shared/dashboard.css" />
+<script src="../shared/clients.js"></script>
+<style>
+  /* ── VP Marketing "Three priorities" working document ─────────────── */
+  .home-custom { font-family: 'Poppins', system-ui, sans-serif; color: #11131a; }
+
+  /* Urgent notes strip */
+  .urgent-notes {
+    background: #f9f3e6;
+    border: 1px solid #ebe2cb;
+    border-left: 4px solid #c44a2a;
+    border-radius: 6px;
+    padding: 18px 22px 22px;
+    margin: 4px 0 22px;
+  }
+  .urgent-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #c44a2a;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .urgent-body {
+    min-height: 56px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #2a2f3a;
+    outline: none;
+  }
+  .urgent-body:empty::before {
+    content: attr(data-placeholder);
+    color: #b8af96;
+  }
+
+  .priorities-hero {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 56px;
+    align-items: center;
+    padding: 28px 4px 56px;
+  }
+  .pri-badge {
+    display: inline-block;
+    background: #dde7ff;
+    color: #2960ff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    letter-spacing: 0.01em;
+  }
+  .pri-h1 {
+    font-size: clamp(40px, 5.4vw, 68px);
+    font-weight: 700;
+    line-height: 1.02;
+    margin: 22px 0 22px;
+    letter-spacing: -0.025em;
+  }
+  .pri-h1 em {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    color: #2960ff;
+  }
+  .pri-lede {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #2a2f3a;
+    max-width: 54ch;
+    margin: 0;
+  }
+  .pri-meta {
+    display: flex;
+    gap: 28px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: #3c4250;
+  }
+  .pri-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pri-meta span::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #2960ff;
+    border-radius: 50%;
+  }
+
+  .founder-card {
+    position: relative;
+    background: #fdfbf3;
+    border: 1px solid #e6e2d2;
+    border-radius: 18px;
+    padding: 14px 14px 18px;
+    transform: rotate(1.6deg);
+    box-shadow: 0 18px 44px rgba(20, 24, 40, 0.10);
+    max-width: 460px;
+    justify-self: end;
+  }
+  .founder-photo {
+    aspect-ratio: 5 / 5.4;
+    background: repeating-linear-gradient(
+      45deg,
+      #2a2d36 0 8px,
+      #232730 8px 16px
+    );
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f5f1e3;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+  .founder-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .founder-tag {
+    position: absolute;
+    left: 28px;
+    bottom: 38px;
+    background: #0e1224;
+    color: #fff;
+    padding: 11px 16px 12px;
+    border-radius: 10px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+  }
+  .founder-tag .ft-name {
+    color: #f4c25a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .founder-tag .ft-role {
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  .priorities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    padding-bottom: 36px;
+  }
+  .priority {
+    background: #fff;
+    border: 1px solid #ebe6d4;
+    border-radius: 18px;
+    padding: 34px 40px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 24px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  }
+  .pri-num {
+    width: 56px;
+    height: 56px;
+    background: #0e1224;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f4c25a;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-style: italic;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .pri-kicker {
+    color: #2960ff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .pri-title {
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 6px 0 0;
+    letter-spacing: -0.015em;
+  }
+  .pri-title mark {
+    background: #fde68a;
+    color: inherit;
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+
+  /* ── Collapsible priority (Lead generation) ── */
+  .priority-collapsible { padding-top: 28px; padding-bottom: 28px; }
+  .pri-details { width: 100%; }
+  .pri-summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .pri-summary::-webkit-details-marker { display: none; }
+  .pri-summary-text .pri-title { margin: 6px 0 0; }
+  .pri-chev {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c6f7a;
+    transition: transform 0.2s ease;
+  }
+  .pri-details[open] .pri-chev { transform: rotate(180deg); }
+  .pri-chev svg { width: 22px; height: 22px; }
+  .pri-expand {
+    margin-top: 22px;
+    padding-top: 22px;
+    border-top: 1px solid #f0ecdc;
+  }
+  .pri-question {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6c6f7a;
+    letter-spacing: 0.01em;
+    margin-bottom: 14px;
+  }
+  .pri-options {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .pri-options li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f3efe1;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #11131a;
+  }
+  .pri-options .opt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2960ff;
+    flex: 0 0 auto;
+  }
+  @media (max-width: 720px) {
+    .pri-options { grid-template-columns: 1fr; }
+  }
+  .pri-body p {
+    font-size: 15px;
+    line-height: 1.65;
+    color: #2a2f3a;
+    margin: 0 0 14px;
+  }
+  .pri-body p strong { color: #11131a; }
+
+  .pri-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 20px 0 18px;
+  }
+  .pri-stat {
+    background: #f3efe1;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .pri-stat-label {
+    font-size: 12px;
+    color: #6c6f7a;
+  }
+  .pri-stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    margin-top: 6px;
+    color: #11131a;
+  }
+  .pri-callout {
+    background: #fcf3d4;
+    border-radius: 12px;
+    padding: 18px 22px;
+  }
+  .pri-callout-label {
+    color: #a86b14;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .pri-callout-body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #2a2f3a;
+  }
+  .pri-callout-body strong { color: #11131a; }
+
+  @media (max-width: 900px) {
+    .priorities-hero { grid-template-columns: 1fr; gap: 28px; }
+    .founder-card { justify-self: start; transform: none; }
+    .priority { grid-template-columns: 1fr; padding: 24px; }
+    .pri-stats { grid-template-columns: 1fr; }
+  }
+</style>
+<script>
+  /* =====================================================================
+     VP Marketing — client dashboard.
+     ===================================================================== */
+  window.CLIENT_DATA = {
+    id:       'vpmarketing',
+    name:     'VP Marketing',
+    initials: 'VP',
+    sub:      '',
+
+    clientAliases: ['VP Marketing', 'VPM'],
+
+    heroImage: '',
+
+    funnel: {
+      spend: 4000,
+      cpv:   0.68,
+      cvr:   2.0,
+      aov:   95,
+      ret:   28,
+      rov:   105,
+    },
+
+    campaigns: [],
+    retainer:  [],
+    tasks:     [],
+    notes:     [],
+
+    links: [
+      { label: 'Klaviyo account',         url: '' },
+      { label: 'ClickUp — campaign list', url: '' },
+      { label: 'Claude project',          url: '' },
+      { label: 'Brand guidelines',        url: '' },
+    ],
+
+    // ── "Three priorities. One quarter." working document ──────────
+    customHomeHtml: `
+      <section class="urgent-notes" data-screen-label="Urgent notes">
+        <div class="urgent-label">Urgent shit and notes</div>
+        <div class="urgent-body" contenteditable="true" data-persist-key="urgent-notes" data-placeholder="Jot anything urgent here…"></div>
+      </section>
+
+      <section class="priorities-hero" data-screen-label="Quarter intro">
+        <div class="pri-intro">
+          <span class="pri-badge">Q3 2026 · for coach session</span>
+          <h1 class="pri-h1">Three priorities.<br/>One <em>quarter.</em></h1>
+        </div>
+        <div class="founder-card">
+          <div class="founder-photo"><img src="../assets/vpm-founder.png" alt="Matthew Hanfeld" /></div>
+          <div class="founder-tag">
+            <div class="ft-name">Matthew Hanfeld</div>
+            <div class="ft-role">VP Marketing · Founder</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="priorities-list" data-screen-label="Three priorities">
+
+        <article class="priority" data-screen-label="Priority 01 — AI implementation">
+          <div class="pri-num">01</div>
+          <div class="pri-content">
+            <div class="pri-kicker">AI Implementation</div>
+            <h2 class="pri-title">Implement AI across <mark>70% of client delivery.</mark></h2>
+          </div>
+        </article>
+
+        <article class="priority priority-collapsible" data-screen-label="Priority 02 — Lead generation">
+          <div class="pri-num">02</div>
+          <div class="pri-content">
+            <details class="pri-details">
+              <summary class="pri-summary">
+                <div class="pri-summary-text">
+                  <div class="pri-kicker">Lead Generation</div>
+                  <h2 class="pri-title">Build a <mark>predictable</mark> lead generation system.</h2>
+                </div>
+                <span class="pri-chev" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </summary>
+              <div class="pri-expand">
+                <div class="pri-question">How will I get my clients?</div>
+                <ul class="pri-options">
+                  <li><span class="opt-dot"></span>Paid ads</li>
+                  <li><span class="opt-dot"></span>Flyer Drop Offs</li>
+                  <li><span class="opt-dot"></span>Project Donut</li>
+                  <li><span class="opt-dot"></span>Prospecting</li>
+                </ul>
+              </div>
+            </details>
+          </div>
+        </article>
+
+        <article class="priority" data-screen-label="Priority 03 — Revenue & take-home">
+          <div class="pri-num">03</div>
+          <div class="pri-content">
+            <div class="pri-kicker">Revenue & Take-home</div>
+            <h2 class="pri-title"><mark>$25k MRR</mark> · <mark>$10k</mark> personal take-home.</h2>
+          </div>
+        </article>
+
+      </section>
+    `,
+  };
+</script>
+<script src="../shared/sync.js"></script>
+</head>
+<body>
+<script src="../shared/dashboard.js"></script>
+<script src="../shared/nav.js"></script>
+<script>
+  /* =====================================================================
+     Wire [data-persist-key] contenteditable elements (e.g. urgent notes)
+     to localStorage under pc-ops::vpmarketing::<key>::v1, so edits survive
+     reload AND auto-sync cross-device via shared/sync.js.
+     ===================================================================== */
+  (function bootPersistKeys() {
+    function init() {
+      const home = document.getElementById('panel-home');
+      if (!home) { setTimeout(init, 50); return; }
+      const els = home.querySelectorAll('[data-persist-key]');
+      if (!els.length) return;
+      els.forEach((el) => {
+        if (el.dataset.pcPersistWired === '1') return;
+        const key = `pc-ops::vpmarketing::${el.dataset.persistKey}::v1`;
+        const saved = localStorage.getItem(key);
+        if (saved != null) el.innerHTML = saved;
+        el.addEventListener('input', () => {
+          const stripped = el.innerHTML.replace(/<br\s*\/?>/gi, '').trim();
+          if (!stripped) localStorage.removeItem(key);
+          else localStorage.setItem(key, el.innerHTML);
+        });
+        el.dataset.pcPersistWired = '1';
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+</script>
+</body>
+</html>
