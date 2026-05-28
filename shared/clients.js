@@ -32,6 +32,15 @@ window.CLIENTS_REGISTRY = [
     pinned:   true,
   },
   {
+    id:       'weekly',
+    name:     'Weekly Structure',
+    initials: 'WS',
+    sub:      'Mon–Sun template',
+    href:     'clients/weekly.html',
+    accent:   '#1c6e72',
+    pinned:   true,
+  },
+  {
     id:       'linen',
     name:     'Linen Connections',
     initials: 'LC',
