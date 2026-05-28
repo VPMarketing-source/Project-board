@@ -79,6 +79,14 @@
     grid-template-columns: 1fr;
     gap: 8px;
   }
+  /* Pinned (personal/agency) tiles sit side-by-side */
+  #pinned-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 600px) {
+    #pinned-grid { grid-template-columns: 1fr; }
+  }
   .tile-grid + .tile-divider {
     margin: 22px 0 16px;
   }
