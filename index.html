@@ -161,9 +161,12 @@
         // Whenever remote data differs from what's in localStorage, reload
         // so every widget repaints from the synced state. Skip only if the
         // user is actively typing somewhere (so we don't blow away an
-        // in-progress edit).
+        // in-progress edit). Flag the reload so the beforeunload editable
+        // flusher in bootCalendar doesn't overwrite the freshly-seeded
+        // localStorage with empty values from the not-yet-rendered DOM.
         if (anyChanged &&
             !document.activeElement?.matches('input,textarea,[contenteditable="true"]')) {
+          window.__plannerReloadingForSync = true;
           location.reload();
           return;
         }
@@ -1549,6 +1552,10 @@
        (The normal input handler still does the per-keystroke save —
        this just guarantees the very last edit before navigation.) */
     function flushAllEditables() {
+      // Skip when our own sync code triggered the reload — the DOM hasn't
+      // re-rendered with the synced data yet, so reading it would overwrite
+      // localStorage with empty defaults and break sync on next load.
+      if (window.__plannerReloadingForSync) return;
       try {
         // Day-column freeform text (both source week + pinned clone)
         const freeCur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
