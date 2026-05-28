@@ -49,7 +49,7 @@ window.CLIENTS_REGISTRY = [
     id:       'fudge',
     name:     'Fudge Lifestyle',
     initials: 'FL',
-    sub:      '',
+    sub:      'Womens clothing · Email marketing',
     href:     'clients/fudge.html',
     accent:   '#6b4a2a',
   },
