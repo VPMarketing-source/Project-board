@@ -148,6 +148,17 @@
     position: relative;
     overflow: hidden;
   }
+  .tile-num {
+    flex: 0 0 auto;
+    width: 22px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+    position: relative;
+    z-index: 1;
+  }
   .tile::before {
     content: '';
     position: absolute;
@@ -308,11 +319,13 @@
     return 'is-stale';
   }
 
-  function tileHtml(c) {
+  function tileHtml(c, num) {
     const last = lastTouchedByClient[c.id];
     const accentTile = c.accent ? hexToTint(c.accent) : 'var(--accent-bg)';
+    const numHtml = num != null ? `<span class="tile-num">${num}.</span>` : '';
     return `
       <a class="tile" href="${escape(c.href)}" style="--accent-tile:${escape(accentTile)}">
+        ${numHtml}
         <span class="tile-avatar" style="color:${escape(c.accent || 'var(--accent)')}">${escape(c.initials || '')}</span>
         <span class="tile-body">
           <p class="tile-name">${escape(c.name || c.id)}</p>
@@ -342,20 +355,23 @@
   function renderTiles() {
     countEl.textContent = clientEntries.length + (clientEntries.length === 1 ? ' space' : ' spaces');
 
-    pinnedEl.innerHTML = pinnedEntries.map(tileHtml).join('');
+    pinnedEl.innerHTML = pinnedEntries.map((c) => tileHtml(c)).join('');
     pinnedEl.style.marginBottom = pinnedEntries.length ? '32px' : '0';
 
     // Split main registry into groups around { divider: true } entries.
+    // Numbering is continuous across groups, only counts client entries.
     const groups = [[]];
+    let n = 0;
     mainRegistry.forEach((entry) => {
       if (entry.divider) { groups.push([]); return; }
-      groups[groups.length - 1].push(entry);
+      n += 1;
+      groups[groups.length - 1].push({ entry, num: n });
     });
 
     groupsEl.innerHTML = groups
       .filter((g) => g.length > 0)
       .map((g, i) => {
-        const grid = `<div class="tile-grid">${g.map(tileHtml).join('')}</div>`;
+        const grid = `<div class="tile-grid">${g.map((x) => tileHtml(x.entry, x.num)).join('')}</div>`;
         return i === 0 ? grid : `<hr class="tile-divider" />${grid}`;
       })
       .join('');
