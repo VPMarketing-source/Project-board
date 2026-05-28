@@ -36,14 +36,19 @@
           </svg>
         </button>
         <ul class="pc-nav-switch-menu" role="menu" hidden>
-          ${registry.map((c) => `
-            <li role="none">
-              <a role="menuitem" href="../${escape(c.href)}" ${c.id === current ? 'aria-current="page"' : ''}>
-                <span class="pc-nav-switch-initials">${escape(c.initials || '')}</span>
-                <span class="pc-nav-switch-name">${escape(c.name || c.id)}</span>
-              </a>
-            </li>
-          `).join('')}
+          ${registry.map((c) => {
+            if (c.divider) {
+              return '<li class="pc-nav-switch-divider" role="separator"></li>';
+            }
+            return `
+              <li role="none">
+                <a role="menuitem" href="../${escape(c.href)}" ${c.id === current ? 'aria-current="page"' : ''}>
+                  <span class="pc-nav-switch-initials">${escape(c.initials || '')}</span>
+                  <span class="pc-nav-switch-name">${escape(c.name || c.id)}</span>
+                </a>
+              </li>
+            `;
+          }).join('')}
         </ul>
       </div>
     `;
@@ -146,6 +151,10 @@
         font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
       }
       .pc-nav-switch-name { font-size: 13px; }
+      .pc-nav-switch-divider {
+        height: 1px; background: rgba(17,19,26,0.10);
+        margin: 6px 4px;
+      }
 
       /* Make the page header avatar feel clickable (wired to go home). */
       .avatar[data-pc-wired="1"] {

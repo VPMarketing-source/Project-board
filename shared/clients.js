@@ -9,8 +9,8 @@
      1. Copy clients/_template.html → clients/<slug>.html and edit CLIENT_DATA
      2. Add a row below
 
-   Each entry mirrors enough of CLIENT_DATA to render a tile without having
-   to fetch each client's HTML.
+   { divider: true } entries split the list into visual groups on the home
+   page and in the client switcher. Add as many as you like.
    ========================================================================= */
 window.CLIENTS_REGISTRY = [
   {
@@ -62,6 +62,17 @@ window.CLIENTS_REGISTRY = [
     accent:   '#2a7080',
   },
   {
+    id:       'jan-legal',
+    name:     'Jan Legal',
+    initials: 'JL',
+    sub:      'Legal services',
+    href:     'clients/jan-legal.html',
+    accent:   '#1c3458',
+  },
+
+  { divider: true },
+
+  {
     id:       'orro',
     name:     'Orro and Co',
     initials: 'OC',
@@ -76,14 +87,6 @@ window.CLIENTS_REGISTRY = [
     sub:      'Accounting · Strategic consultancy',
     href:     'clients/qubik.html',
     accent:   '#2a5080',
-  },
-  {
-    id:       'jan-legal',
-    name:     'Jan Legal',
-    initials: 'JL',
-    sub:      'Legal services',
-    href:     'clients/jan-legal.html',
-    accent:   '#1c3458',
   },
   {
     id:       'elite',

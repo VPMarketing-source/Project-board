@@ -79,6 +79,14 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 14px;
   }
+  .tile-grid + .tile-divider {
+    margin: 22px 0 16px;
+  }
+  .tile-divider {
+    border: 0;
+    border-top: 1px solid #d6cca8;
+    margin: 0 0 16px;
+  }
   .tile {
     display: flex;
     gap: 14px;
@@ -193,7 +201,7 @@
     <div class="section-count" id="clients-count"></div>
   </div>
 
-  <div class="tile-grid" id="tile-grid"></div>
+  <div id="tile-groups"></div>
 
   <div class="hint">
     Add a client: copy <code>clients/_template.html</code> to <code>clients/&lt;slug&gt;.html</code>,
@@ -208,10 +216,11 @@
   const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
 
-  const grid = document.getElementById('tile-grid');
+  const groupsEl = document.getElementById('tile-groups');
   const countEl = document.getElementById('clients-count');
   const registry = window.CLIENTS_REGISTRY || [];
   const lastTouchedByClient = {};
+  const clientEntries = registry.filter((e) => !e.divider);
 
   function escape(s) {
     return String(s == null ? '' : s)
@@ -242,25 +251,41 @@
     return 'is-stale';
   }
 
-  function renderTiles() {
-    countEl.textContent = registry.length + (registry.length === 1 ? ' space' : ' spaces');
-    grid.innerHTML = registry.map((c) => {
-      const last = lastTouchedByClient[c.id];
-      const accentTile = c.accent ? hexToTint(c.accent) : 'var(--accent-bg)';
-      return `
-        <a class="tile" href="${escape(c.href)}" style="--accent-tile:${escape(accentTile)}">
-          <span class="tile-avatar" style="color:${escape(c.accent || 'var(--accent)')}">${escape(c.initials || '')}</span>
-          <span class="tile-body">
-            <p class="tile-name">${escape(c.name || c.id)}</p>
-            <p class="tile-sub">${escape(c.sub || '')}</p>
-            <span class="tile-meta">
-              <span class="tile-meta-dot ${freshness(last)}"></span>
-              <span>${escape(timeAgo(last))}</span>
-            </span>
+  function tileHtml(c) {
+    const last = lastTouchedByClient[c.id];
+    const accentTile = c.accent ? hexToTint(c.accent) : 'var(--accent-bg)';
+    return `
+      <a class="tile" href="${escape(c.href)}" style="--accent-tile:${escape(accentTile)}">
+        <span class="tile-avatar" style="color:${escape(c.accent || 'var(--accent)')}">${escape(c.initials || '')}</span>
+        <span class="tile-body">
+          <p class="tile-name">${escape(c.name || c.id)}</p>
+          <p class="tile-sub">${escape(c.sub || '')}</p>
+          <span class="tile-meta">
+            <span class="tile-meta-dot ${freshness(last)}"></span>
+            <span>${escape(timeAgo(last))}</span>
           </span>
-        </a>
-      `;
-    }).join('');
+        </span>
+      </a>
+    `;
+  }
+
+  function renderTiles() {
+    countEl.textContent = clientEntries.length + (clientEntries.length === 1 ? ' space' : ' spaces');
+
+    // Split registry into groups around { divider: true } entries.
+    const groups = [[]];
+    registry.forEach((entry) => {
+      if (entry.divider) { groups.push([]); return; }
+      groups[groups.length - 1].push(entry);
+    });
+
+    groupsEl.innerHTML = groups
+      .filter((g) => g.length > 0)
+      .map((g, i) => {
+        const grid = `<div class="tile-grid">${g.map(tileHtml).join('')}</div>`;
+        return i === 0 ? grid : `<hr class="tile-divider" />${grid}`;
+      })
+      .join('');
   }
 
   function hexToTint(hex) {
