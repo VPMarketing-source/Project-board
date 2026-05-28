@@ -146,13 +146,44 @@
         font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
       }
       .pc-nav-switch-name { font-size: 13px; }
+
+      /* Make the page header avatar feel clickable (wired to go home). */
+      .avatar[data-pc-wired="1"] {
+        transition: box-shadow 140ms ease, transform 140ms ease;
+      }
+      .avatar[data-pc-wired="1"]:hover {
+        box-shadow: 0 0 0 3px rgba(41,96,255,0.12);
+        transform: translateY(-1px);
+      }
+      .avatar[data-pc-wired="1"]:focus-visible {
+        outline: 2px solid #2960ff;
+        outline-offset: 2px;
+      }
     `;
     document.head.appendChild(s);
+  }
+
+  function wireAvatar() {
+    const avatar = document.querySelector('.header .avatar') || document.querySelector('.avatar');
+    if (!avatar || avatar.dataset.pcWired === '1') return;
+    avatar.dataset.pcWired = '1';
+    avatar.setAttribute('role', 'button');
+    avatar.setAttribute('tabindex', '0');
+    avatar.setAttribute('aria-label', 'Open all clients');
+    avatar.title = 'All clients';
+    avatar.style.cursor = 'pointer';
+    avatar.addEventListener('click', () => { window.location.href = '../index.html'; });
+    avatar.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.location.href = '../index.html'; }
+    });
   }
 
   function start() {
     injectStyles();
     render();
+    wireAvatar();
+    // The shared dashboard.js sometimes re-renders the header; rewire if so.
+    new MutationObserver(wireAvatar).observe(document.body, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start);
