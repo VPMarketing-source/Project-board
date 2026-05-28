@@ -196,6 +196,8 @@
     <p class="hello-sub">Pick a client space to drop into.</p>
   </header>
 
+  <div class="tile-grid" id="pinned-grid"></div>
+
   <div class="section-head">
     <div class="section-title">Clients</div>
     <div class="section-count" id="clients-count"></div>
@@ -217,10 +219,13 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
 
   const groupsEl = document.getElementById('tile-groups');
+  const pinnedEl = document.getElementById('pinned-grid');
   const countEl = document.getElementById('clients-count');
   const registry = window.CLIENTS_REGISTRY || [];
   const lastTouchedByClient = {};
-  const clientEntries = registry.filter((e) => !e.divider);
+  const pinnedEntries = registry.filter((e) => !e.divider && e.pinned);
+  const mainRegistry  = registry.filter((e) => !e.pinned);
+  const clientEntries = mainRegistry.filter((e) => !e.divider);
 
   function escape(s) {
     return String(s == null ? '' : s)
@@ -272,9 +277,12 @@
   function renderTiles() {
     countEl.textContent = clientEntries.length + (clientEntries.length === 1 ? ' space' : ' spaces');
 
-    // Split registry into groups around { divider: true } entries.
+    pinnedEl.innerHTML = pinnedEntries.map(tileHtml).join('');
+    pinnedEl.style.marginBottom = pinnedEntries.length ? '32px' : '0';
+
+    // Split main registry into groups around { divider: true } entries.
     const groups = [[]];
-    registry.forEach((entry) => {
+    mainRegistry.forEach((entry) => {
       if (entry.divider) { groups.push([]); return; }
       groups[groups.length - 1].push(entry);
     });

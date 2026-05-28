@@ -20,6 +20,7 @@ window.CLIENTS_REGISTRY = [
     sub:      'Planner',
     href:     'clients/vpm.html',
     accent:   '#a86b14',
+    pinned:   true,
   },
   {
     id:       'vpmarketing',
