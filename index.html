@@ -128,11 +128,12 @@
   .client-list + .tile-divider { margin: 10px 0; }
   .tile {
     display: flex;
-    gap: 14px;
-    padding: 18px 18px 16px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: 12px;
     text-decoration: none;
     color: inherit;
     transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
@@ -155,8 +156,8 @@
   }
   .tile-avatar {
     flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: #f1ecdc;
     color: var(--accent);
@@ -164,7 +165,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 12px;
     letter-spacing: 0.04em;
     position: relative;
     z-index: 1;
@@ -177,24 +178,28 @@
   }
   .tile-name {
     font-weight: 600;
-    font-size: 16px;
-    margin: 0 0 2px;
+    font-size: 14px;
+    margin: 0 0 1px;
     line-height: 1.2;
   }
   .tile-sub {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--ink-mute);
-    margin: 0 0 10px;
+    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
   }
   .tile-meta {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
+    gap: 5px;
+    font-size: 10px;
     color: var(--ink-mute);
+    margin-left: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
   .tile-meta-dot {
     width: 6px;
@@ -303,11 +308,11 @@
         <span class="tile-avatar" style="color:${escape(c.accent || 'var(--accent)')}">${escape(c.initials || '')}</span>
         <span class="tile-body">
           <p class="tile-name">${escape(c.name || c.id)}</p>
-          <p class="tile-sub">${escape(c.sub || '')}</p>
-          <span class="tile-meta">
-            <span class="tile-meta-dot ${freshness(last)}"></span>
-            <span>${escape(timeAgo(last))}</span>
-          </span>
+          ${c.sub ? `<p class="tile-sub">${escape(c.sub)}</p>` : ''}
+        </span>
+        <span class="tile-meta">
+          <span class="tile-meta-dot ${freshness(last)}"></span>
+          <span>${escape(timeAgo(last))}</span>
         </span>
       </a>
     `;
@@ -342,8 +347,8 @@
     groupsEl.innerHTML = groups
       .filter((g) => g.length > 0)
       .map((g, i) => {
-        const list = `<div class="client-list">${g.map(rowHtml).join('')}</div>`;
-        return i === 0 ? list : `<hr class="tile-divider" />${list}`;
+        const grid = `<div class="tile-grid">${g.map(tileHtml).join('')}</div>`;
+        return i === 0 ? grid : `<hr class="tile-divider" />${grid}`;
       })
       .join('');
   }
