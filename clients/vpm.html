@@ -23,9 +23,19 @@
 
 
 <style>
-  /* VPM planner: widen the page so the calendar and notes get more room. */
-  .site-inner { max-width: 1480px !important; }
-  .page       { max-width: 1480px !important; }
+  /* VPM planner: widen the page so the calendar and notes get more room.
+     Uses (almost) the full viewport — caps at 2000px on ultrawide displays
+     so reading lines never get absurd. */
+  .site-inner {
+    max-width: min(2000px, calc(100vw - 32px)) !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+  .page {
+    max-width: min(2000px, calc(100vw - 32px)) !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
 
   /* Home: notes spans full width; calendar fills the row below */
   #panel-home.is-active {
