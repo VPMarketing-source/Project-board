@@ -158,11 +158,11 @@
           origSetItem.call(window.localStorage, MIGRATED_KEY, '1');
         }
 
-        // If the page rendered from a totally empty localStorage and we
-        // pulled in new data, reload so all widgets paint with the right
-        // initial state. Only do this if the user hasn't started typing
-        // anywhere yet (no active text-edit element).
-        if (anyChanged && Object.keys(before).length === 0 &&
+        // Whenever remote data differs from what's in localStorage, reload
+        // so every widget repaints from the synced state. Skip only if the
+        // user is actively typing somewhere (so we don't blow away an
+        // in-progress edit).
+        if (anyChanged &&
             !document.activeElement?.matches('input,textarea,[contenteditable="true"]')) {
           location.reload();
           return;
