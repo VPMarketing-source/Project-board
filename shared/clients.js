@@ -29,6 +29,7 @@ window.CLIENTS_REGISTRY = [
     sub:      'Agency · Quarterly priorities',
     href:     'clients/vpmarketing.html',
     accent:   '#2960ff',
+    pinned:   true,
   },
   {
     id:       'mlc',
