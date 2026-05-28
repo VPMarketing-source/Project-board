@@ -33,7 +33,7 @@ window.CLIENTS_REGISTRY = [
     id:       'linen',
     name:     'Linen Connections',
     initials: 'LC',
-    sub:      '',
+    sub:      'Handcrafted linen · Email marketing',
     href:     'clients/linen.html',
     accent:   '#b8a07a',
   },
