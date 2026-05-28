@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MLC — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="shared/dashboard.css" />
+<script>
+  /* =====================================================================
+     MLC — client dashboard. Edit the data below to seed this client's
+     board. After first load, edits persist in localStorage scoped by id.
+     "Reset to template" snaps back to these starting values.
+     ===================================================================== */
+  window.CLIENT_DATA = {
+    id:       'mlc',
+    name:     'MLC',
+    initials: 'ML',
+    sub:      '',
+
+    // Aliases used to match the "Client" custom field in ClickUp.
+    // The dropdown option name in ClickUp is "Melbourne Leather Co".
+    clientAliases: ['Melbourne Leather Co', 'MLC'],
+
+    heroImage: 'assets/mlc-hero.png',
+
+    funnel: {
+      spend: 4000,
+      cpv:   0.68,
+      cvr:   2.0,
+      aov:   95,
+      ret:   28,
+      rov:   105,
+    },
+
+    campaigns: [],
+    retainer:  [],
+    tasks:     [],
+    notes:     [],
+
+    links: [
+      { label: 'Klaviyo account',         url: '' },
+      { label: 'ClickUp — campaign list', url: '' },
+      { label: 'Claude project',          url: '' },
+      { label: 'Brand guidelines',        url: '' },
+    ],
+  };
+</script>
+</head>
+<body>
+<script src="shared/dashboard.js"></script>
+</body>
+</html>

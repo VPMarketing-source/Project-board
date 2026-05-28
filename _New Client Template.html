@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>New Client — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="shared/dashboard.css" />
+<script>
+  /* =====================================================================
+     NEW CLIENT TEMPLATE — copy this file to "<Client Name>.html" and:
+       1. Change CLIENT_DATA.id to a unique short slug (lowercase, no spaces)
+       2. Fill in name / initials / sub
+       3. Set the funnel defaults (or leave the example values)
+       4. Empty out — or populate — campaigns / notes / links
+
+     The id MUST be unique per client. It scopes localStorage so each
+     client's edits stay separate. Reusing an id will overwrite that
+     client's saved data.
+     ===================================================================== */
+  window.CLIENT_DATA = {
+    id:       'new-client',          // ← CHANGE: unique slug, e.g. 'linen', 'mlc'
+    name:     'New Client',          // ← CHANGE
+    initials: 'NC',                  // ← CHANGE: 2 chars
+    sub:      'Email marketing · Klaviyo',
+
+    // Starting funnel values. These show on first load; edits persist
+    // in localStorage. "Reset to template" snaps back to these.
+    funnel: {
+      spend: 4000,
+      cpv:   0.68,
+      cvr:   2.0,
+      aov:   95,
+      ret:   28,
+      rov:   105,
+    },
+
+    // Empty arrays = start with a blank list. Add a few sample rows
+    // here if you want the new client to come pre-populated.
+    campaigns: [
+      // { name: 'Campaign name', date: 'Wed 28 May · 7:00am', status: 'draft', url: 'https://app.clickup.com/t/...' },
+    ],
+    retainer: [
+      // { name: 'Task name', date: 'Mon 02 Jun', status: 'todo', url: 'https://app.clickup.com/t/...' },
+      // status: 'todo' | 'doing' | 'review' | 'done' | 'blocked'
+    ],
+    tasks: [
+      // ad-hoc tasks (Tasks tab) — same shape as retainer
+    ],
+    notes: [
+      // { text: 'First note here', muted: false },
+    ],
+    links: [
+      { label: 'Klaviyo account',         url: '' },
+      { label: 'ClickUp — campaign list', url: '' },
+      { label: 'Claude project',          url: '' },
+      { label: 'Brand guidelines',        url: '' },
+    ],
+  };
+</script>
+</head>
+<body>
+<script src="shared/dashboard.js"></script>
+</body>
+</html>
