@@ -81,7 +81,24 @@
     text-transform: uppercase;
     color: var(--accent);
     font-weight: 700;
-    margin: 0 0 28px;
+    margin: 0 0 18px;
+  }
+
+  .manifesto {
+    max-width: 760px;
+    margin: 0 auto 36px;
+    padding: 0 4px;
+    text-align: center;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .manifesto p { margin: 0; }
+  .manifesto p + p { margin-top: 16px; }
+  .manifesto .manifesto-stinger {
+    font-style: italic;
+    font-weight: 600;
+    color: var(--accent);
   }
 
   .tile-grid {
@@ -264,6 +281,11 @@
 <div class="wrap">
 
   <div class="top-stamp">VS Code · Vercel</div>
+
+  <div class="manifesto">
+    <p>This system is different because it keeps everything for a client in one evolving space, so I stop losing momentum and context switching between 50 different apps. It lets me think creatively, organise things the way my brain works, and instantly reconnect to the work without rebuilding it all in my head. You can make your work art and dominate a space.</p>
+    <p class="manifesto-stinger">So yes — this is different this time. You have solved it.</p>
+  </div>
 
   <div class="tile-grid" id="pinned-grid"></div>
 
