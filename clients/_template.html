@@ -7,18 +7,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
-<link rel="stylesheet" href="shared/dashboard.css" />
+<link rel="stylesheet" href="../shared/dashboard.css" />
+<script src="../shared/clients.js"></script>
 <script>
   /* =====================================================================
-     NEW CLIENT TEMPLATE — copy this file to "<Client Name>.html" and:
+     NEW CLIENT TEMPLATE — copy this file to "clients/<slug>.html" and:
        1. Change CLIENT_DATA.id to a unique short slug (lowercase, no spaces)
        2. Fill in name / initials / sub
        3. Set the funnel defaults (or leave the example values)
        4. Empty out — or populate — campaigns / notes / links
+       5. Add a tile entry for this client in the home index.html
 
-     The id MUST be unique per client. It scopes localStorage so each
-     client's edits stay separate. Reusing an id will overwrite that
-     client's saved data.
+     The id MUST be unique per client. It scopes localStorage AND the
+     Supabase planner_state.client_id column. Reusing an id will collide
+     with that client's data.
+
+     If you want a fully custom layout (not the shared dashboard.js
+     render), skip dashboard.js entirely and build your own UI — just
+     keep CLIENT_DATA + sync.js so cross-device sync still works.
      ===================================================================== */
   window.CLIENT_DATA = {
     id:       'new-client',          // ← CHANGE: unique slug, e.g. 'linen', 'mlc'
@@ -26,8 +32,6 @@
     initials: 'NC',                  // ← CHANGE: 2 chars
     sub:      'Email marketing · Klaviyo',
 
-    // Starting funnel values. These show on first load; edits persist
-    // in localStorage. "Reset to template" snaps back to these.
     funnel: {
       spend: 4000,
       cpv:   0.68,
@@ -37,8 +41,6 @@
       rov:   105,
     },
 
-    // Empty arrays = start with a blank list. Add a few sample rows
-    // here if you want the new client to come pre-populated.
     campaigns: [
       // { name: 'Campaign name', date: 'Wed 28 May · 7:00am', status: 'draft', url: 'https://app.clickup.com/t/...' },
     ],
@@ -60,8 +62,10 @@
     ],
   };
 </script>
+<script src="../shared/sync.js"></script>
 </head>
 <body>
-<script src="shared/dashboard.js"></script>
+<script src="../shared/dashboard.js"></script>
+<script src="../shared/nav.js"></script>
 </body>
 </html>

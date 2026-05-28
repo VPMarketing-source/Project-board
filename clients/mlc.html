@@ -7,11 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
-<link rel="stylesheet" href="shared/dashboard.css" />
+<link rel="stylesheet" href="../shared/dashboard.css" />
+<script src="../shared/clients.js"></script>
 <script>
   /* =====================================================================
      MLC — client dashboard. Edit the data below to seed this client's
-     board. After first load, edits persist in localStorage scoped by id.
+     board. After first load, edits persist in localStorage scoped by id
+     and mirror cross-device via shared/sync.js.
      "Reset to template" snaps back to these starting values.
      ===================================================================== */
   window.CLIENT_DATA = {
@@ -21,10 +23,9 @@
     sub:      '',
 
     // Aliases used to match the "Client" custom field in ClickUp.
-    // The dropdown option name in ClickUp is "Melbourne Leather Co".
     clientAliases: ['Melbourne Leather Co', 'MLC'],
 
-    heroImage: 'assets/mlc-hero.png',
+    heroImage: '../assets/mlc-hero.png',
 
     funnel: {
       spend: 4000,
@@ -48,8 +49,10 @@
     ],
   };
 </script>
+<script src="../shared/sync.js"></script>
 </head>
 <body>
-<script src="shared/dashboard.js"></script>
+<script src="../shared/dashboard.js"></script>
+<script src="../shared/nav.js"></script>
 </body>
 </html>
