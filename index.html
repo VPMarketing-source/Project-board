@@ -87,6 +87,45 @@
     border-top: 1px solid #d6cca8;
     margin: 0 0 16px;
   }
+
+  /* Condensed list — used for the Clients section */
+  .client-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .client-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 10px 4px;
+    text-decoration: none;
+    color: var(--ink);
+    border-bottom: 1px solid transparent;
+    transition: color 120ms ease, border-color 120ms ease, padding-left 160ms ease;
+  }
+  .client-row:hover {
+    color: var(--accent);
+    border-bottom-color: rgba(168,107,20,0.18);
+    padding-left: 8px;
+  }
+  .client-row-name {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+  }
+  .client-row-meta {
+    font-size: 12px;
+    color: var(--ink-mute);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .client-row-meta .tile-meta-dot { background: #cfd2db; }
+  .client-list + .tile-divider { margin: 10px 0; }
   .tile {
     display: flex;
     gap: 14px;
@@ -274,6 +313,19 @@
     `;
   }
 
+  function rowHtml(c) {
+    const last = lastTouchedByClient[c.id];
+    return `
+      <a class="client-row" href="${escape(c.href)}">
+        <span class="client-row-name">${escape(c.name || c.id)}</span>
+        <span class="client-row-meta">
+          <span class="tile-meta-dot ${freshness(last)}"></span>
+          <span>${escape(timeAgo(last))}</span>
+        </span>
+      </a>
+    `;
+  }
+
   function renderTiles() {
     countEl.textContent = clientEntries.length + (clientEntries.length === 1 ? ' space' : ' spaces');
 
@@ -290,8 +342,8 @@
     groupsEl.innerHTML = groups
       .filter((g) => g.length > 0)
       .map((g, i) => {
-        const grid = `<div class="tile-grid">${g.map(tileHtml).join('')}</div>`;
-        return i === 0 ? grid : `<hr class="tile-divider" />${grid}`;
+        const list = `<div class="client-list">${g.map(rowHtml).join('')}</div>`;
+        return i === 0 ? list : `<hr class="tile-divider" />${list}`;
       })
       .join('');
   }
