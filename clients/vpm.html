@@ -1439,6 +1439,10 @@
         openPopupFor(span);
         return;
       }
+      // Ignore clicks that originated inside the formatting toolbar —
+      // the Note button there just OPENED the popup; don't immediately
+      // close it.
+      if (e.target.closest && e.target.closest('.fmt-toolbar')) return;
       if (pop.style.display === 'block' && !pop.contains(e.target)) {
         // Click outside popup — auto-save
         commitPopup();
