@@ -1517,6 +1517,23 @@
         span.appendChild(frag);
         range.insertNode(span);
       }
+      // Google Sheets / Docs paste wraps text in spans + td with explicit
+      // font-size (often in pt). Strip any inline font-size on descendants
+      // AND ancestor table cells inside this editable so the wrapper's
+      // value actually wins.
+      span.querySelectorAll('[style*="font-size"]').forEach((el) => {
+        el.style.fontSize = '';
+        if (!el.getAttribute('style')) el.removeAttribute('style');
+      });
+      const ce = span.closest('[contenteditable="true"]');
+      let anc = span.parentElement;
+      while (anc && anc !== ce) {
+        if (anc.style && anc.style.fontSize) {
+          anc.style.fontSize = '';
+          if (!anc.getAttribute('style')) anc.removeAttribute('style');
+        }
+        anc = anc.parentElement;
+      }
       fireInputFor(span);
       // Re-select the resized text so user can keep stepping
       const newRange = document.createRange();
