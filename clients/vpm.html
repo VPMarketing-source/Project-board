@@ -888,7 +888,8 @@
     font-family: inherit;
     text-align: left;
   }
-  .cal-month-head:hover { background: transparent; cursor: default; }
+  .cal-month-head:hover { background: rgba(17,19,26,0.025); cursor: pointer; }
+  .cal-month-head .cal-month-chev svg { transition: transform 0.2s ease; }
   .cal-month-chev {
     width: 22px;
     height: 22px;
@@ -1885,22 +1886,35 @@
         const m = new Date(view.getFullYear(), view.getMonth() + i, 1);
         const monthKey = m.getFullYear() + '-' + (m.getMonth() + 1);
         const defaultOpen = i === 0;
-        const isOpen = true; // months are always expanded — no accordion collapse
+        const isOpen = (monthKey in monthsOpen) ? !!monthsOpen[monthKey] : defaultOpen;
 
         const section = document.createElement('section');
         section.className = 'cal-month' + (isOpen ? ' is-open' : '');
         section.dataset.monthKey = monthKey;
         section.innerHTML = `
-          <div class="cal-month-head" aria-expanded="true">
+          <button type="button" class="cal-month-head" aria-expanded="${isOpen}">
+            <span class="cal-month-chev" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            </span>
             <span class="cal-month-name">${MONTH_NAMES[m.getMonth()]}</span>
             <span class="cal-month-year">${m.getFullYear()}</span>
-          </div>
+          </button>
           <div class="cal-month-body">
             <div class="cal-weeks"></div>
           </div>
         `;
         const weeksEl = section.querySelector('.cal-weeks');
         renderMonthWeeks(m, weeksEl);
+
+        section.querySelector('.cal-month-head').addEventListener('click', () => {
+          const nowOpen = !section.classList.contains('is-open');
+          section.classList.toggle('is-open', nowOpen);
+          section.querySelector('.cal-month-head').setAttribute('aria-expanded', String(nowOpen));
+          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::monthsOpen') || '{}');
+          cur[monthKey] = nowOpen;
+          localStorage.setItem(STORE_KEY + '::monthsOpen', JSON.stringify(cur));
+        });
+
         monthsEl.appendChild(section);
       }
     }
