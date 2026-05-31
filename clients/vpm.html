@@ -876,6 +876,15 @@
     border-radius: 14px;
     overflow: hidden;
   }
+  /* "You are here" tint on the current month */
+  .cal-month.is-current {
+    background: #fef6dc;
+    border-color: #e8c97a;
+    box-shadow: 0 0 0 1px rgba(232, 201, 122, 0.25);
+  }
+  .cal-month.is-current .cal-month-name { color: #6b4a13; }
+  .cal-month.is-current .cal-month-year { color: #a86b14; }
+  .cal-month.is-current .cal-month-head:hover { background: rgba(168, 107, 20, 0.05); }
   .cal-month-head {
     width: 100%;
     display: flex;
@@ -1967,8 +1976,9 @@
         const defaultOpen = isCurrentYear && i === todayMonth;
         const isOpen = (monthKey in monthsOpen) ? !!monthsOpen[monthKey] : defaultOpen;
 
+        const isCurrent = isCurrentYear && i === todayMonth;
         const section = document.createElement('section');
-        section.className = 'cal-month' + (isOpen ? ' is-open' : '');
+        section.className = 'cal-month' + (isOpen ? ' is-open' : '') + (isCurrent ? ' is-current' : '');
         section.dataset.monthKey = monthKey;
         section.innerHTML = `
           <button type="button" class="cal-month-head" aria-expanded="${isOpen}">
