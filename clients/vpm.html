@@ -1149,23 +1149,66 @@
 
   /* Annotated text — click to view/edit the attached note */
   .annotated {
-    background: linear-gradient(transparent 60%, rgba(250, 204, 21, 0.45) 60%);
-    border-bottom: 1px dotted rgba(168,107,20,0.55);
-    cursor: help;
-    padding: 0 1px;
+    background: rgba(254, 243, 199, 0.7);
+    border-bottom: 1.5px solid #f59e0b;
+    border-radius: 2px;
+    cursor: pointer;
+    padding: 0 2px;
   }
+  .annotated:hover { background: rgba(253, 224, 71, 0.85); }
+  /* Inline sticky-note button right after the annotated text */
   .annotated::after {
-    content: '';
+    content: '📝';
     display: inline-block;
-    width: 8px; height: 8px;
-    margin-left: 3px;
-    margin-top: -8px;
-    vertical-align: super;
-    border-radius: 50%;
-    background: #f59e0b;
-    opacity: 0.85;
+    margin-left: 5px;
+    font-size: 0.85em;
+    line-height: 1;
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    border-radius: 4px;
+    padding: 1px 4px;
+    cursor: pointer;
+    vertical-align: 1px;
+    transition: background 120ms ease, transform 120ms ease;
   }
-  .annotated:hover { background: linear-gradient(transparent 55%, rgba(250, 204, 21, 0.7) 55%); }
+  .annotated:hover::after {
+    background: #fde68a;
+    transform: translateY(-1px);
+  }
+
+  /* Read-only hover tooltip with the note text */
+  .annotation-tooltip {
+    position: absolute;
+    z-index: 800;
+    max-width: 320px;
+    background: #11131a;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font: 500 13px/1.5 'Poppins', -apple-system, sans-serif;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .annotation-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 14px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid #11131a;
+  }
+  .annotation-tooltip-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 600;
+  }
 
   /* Note edit popup */
   .note-popup {
@@ -1383,6 +1426,7 @@
     }
 
     function openPopupFor(span) {
+      hideTooltip();
       activeSpan = span;
       const ta = pop.querySelector('textarea');
       ta.value = span.getAttribute('data-note') || '';
@@ -1450,12 +1494,43 @@
       }
     });
 
-    // Show a tooltip-style preview on hover (uses the same data-note)
+    // Custom hover tooltip so the note text is visible without opening
+    // the editor popup. (Native title is removed; this replaces it.)
+    let tooltipEl = null;
+    function showTooltip(span) {
+      const note = span.getAttribute('data-note');
+      if (!note) return;
+      if (tooltipEl) tooltipEl.remove();
+      tooltipEl = document.createElement('div');
+      tooltipEl.className = 'annotation-tooltip';
+      tooltipEl.textContent = note;
+      const hint = document.createElement('span');
+      hint.className = 'annotation-tooltip-hint';
+      hint.textContent = 'Click to edit';
+      tooltipEl.appendChild(hint);
+      document.body.appendChild(tooltipEl);
+      const rect = span.getBoundingClientRect();
+      const top = rect.bottom + window.scrollY + 8;
+      const left = Math.max(8, Math.min(rect.left + window.scrollX,
+        window.scrollX + window.innerWidth - tooltipEl.offsetWidth - 8));
+      tooltipEl.style.top = top + 'px';
+      tooltipEl.style.left = left + 'px';
+    }
+    function hideTooltip() {
+      if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
+    }
     document.addEventListener('mouseover', (e) => {
       const span = e.target.closest && e.target.closest('.annotated');
-      if (span && span.getAttribute('data-note')) {
-        span.title = span.getAttribute('data-note');
+      if (span) {
+        span.removeAttribute('title'); // ensure native tip doesn't appear
+        showTooltip(span);
       }
+    });
+    document.addEventListener('mouseout', (e) => {
+      const span = e.target.closest && e.target.closest('.annotated');
+      if (!span) return;
+      const to = e.relatedTarget;
+      if (!to || !to.closest || !to.closest('.annotated')) hideTooltip();
     });
 
     function commitPopup() {
@@ -1466,7 +1541,7 @@
         unwrap(activeSpan);
       } else {
         activeSpan.setAttribute('data-note', val);
-        activeSpan.title = val;
+        activeSpan.removeAttribute('title'); // custom tooltip handles preview
       }
       if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
       closePopup();
