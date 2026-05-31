@@ -1880,12 +1880,16 @@
       const view = state.view;
 
       monthsEl.innerHTML = '';
-      const MONTH_COUNT = 3;
+      const year = view.getFullYear();
+      const today = new Date();
+      const isCurrentYear = year === today.getFullYear();
+      const todayMonth = today.getMonth();
       const monthsOpen = JSON.parse(localStorage.getItem(STORE_KEY + '::monthsOpen') || '{}');
-      for (let i = 0; i < MONTH_COUNT; i++) {
-        const m = new Date(view.getFullYear(), view.getMonth() + i, 1);
-        const monthKey = m.getFullYear() + '-' + (m.getMonth() + 1);
-        const defaultOpen = i === 0;
+      for (let i = 0; i < 12; i++) {
+        const m = new Date(year, i, 1);
+        const monthKey = year + '-' + (i + 1);
+        // Default: only the current month is open; everything else collapsed.
+        const defaultOpen = isCurrentYear && i === todayMonth;
         const isOpen = (monthKey in monthsOpen) ? !!monthsOpen[monthKey] : defaultOpen;
 
         const section = document.createElement('section');
