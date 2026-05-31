@@ -1146,6 +1146,27 @@
   }
   .fmt-toolbar .fmt-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 4px; align-self: center; }
 
+  /* Stuck-block remover: hover any pasted <table> inside an editable to
+     get a small ✕ button that yanks the whole block in one click. */
+  .pc-block-del {
+    position: absolute;
+    z-index: 650;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #b86040;
+    color: #fff;
+    border: 2px solid #fff;
+    cursor: pointer;
+    font: 700 13px/1 -apple-system, sans-serif;
+    box-shadow: 0 4px 12px rgba(184,96,64,0.35);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 120ms ease, transform 120ms ease;
+  }
+  .pc-block-del:hover { background: #9a4a30; transform: scale(1.08); }
+
   /* Bullet/ordered lists inside any contenteditable region */
   [contenteditable="true"] ul,
   [contenteditable="true"] ol {
@@ -3593,6 +3614,85 @@
     window.addEventListener('resize', () => fitScale());
 
     mount();
+  })();
+</script>
+
+<script>
+  /* =====================================================================
+     Stuck-block remover.
+     Pasted <table> elements inside any contenteditable are notoriously
+     hard to delete with the keyboard. Hover one and a small red ✕ button
+     appears on its top-right corner — click to yank the whole block.
+     Currently targets <table>; easy to widen if you want it on lists or
+     blockquotes too.
+     ===================================================================== */
+  (function bootBlockRemover() {
+    let btnEl = null;
+    let activeBlock = null;
+    let hideTimer = null;
+
+    function targetsForRoot(root) {
+      return root.querySelectorAll(
+        '[contenteditable="true"] table'
+      );
+    }
+
+    function showBtnFor(block) {
+      if (btnEl && activeBlock === block) return;
+      hideBtn();
+      activeBlock = block;
+      btnEl = document.createElement('button');
+      btnEl.type = 'button';
+      btnEl.className = 'pc-block-del';
+      btnEl.textContent = '×';
+      btnEl.title = 'Remove this block';
+      btnEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      btnEl.addEventListener('mouseleave', () => scheduleHide());
+      btnEl.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ce = block.closest('[contenteditable="true"]');
+        block.remove();
+        if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
+        hideBtn();
+      });
+      document.body.appendChild(btnEl);
+      reposition();
+    }
+
+    function reposition() {
+      if (!btnEl || !activeBlock || !activeBlock.isConnected) { hideBtn(); return; }
+      const rect = activeBlock.getBoundingClientRect();
+      btnEl.style.top  = (rect.top + window.scrollY - 8) + 'px';
+      btnEl.style.left = (rect.right + window.scrollX - 14) + 'px';
+    }
+
+    function scheduleHide() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideBtn, 150);
+    }
+
+    function hideBtn() {
+      clearTimeout(hideTimer);
+      if (btnEl) { btnEl.remove(); btnEl = null; }
+      activeBlock = null;
+    }
+
+    document.addEventListener('mouseover', (e) => {
+      const block = e.target.closest('[contenteditable="true"] table');
+      if (block) {
+        clearTimeout(hideTimer);
+        showBtnFor(block);
+      }
+    });
+    document.addEventListener('mouseout', (e) => {
+      const leftBlock = e.target.closest('[contenteditable="true"] table');
+      if (leftBlock && (!e.relatedTarget || (!e.relatedTarget.closest('[contenteditable="true"] table') && !e.relatedTarget.closest('.pc-block-del')))) {
+        scheduleHide();
+      }
+    });
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
   })();
 </script>
 
