@@ -1383,8 +1383,26 @@
     function positionBar(range) {
       const rect = range.getBoundingClientRect();
       if (!rect.width && !rect.height) return;
-      bar.style.top  = (rect.top + window.scrollY - bar.offsetHeight - 8) + 'px';
-      bar.style.left = (rect.left + window.scrollX + rect.width / 2 - bar.offsetWidth / 2) + 'px';
+      const margin = 8;
+      const barW = bar.offsetWidth;
+      const barH = bar.offsetHeight;
+
+      // Vertical: prefer above; flip below if no room at the top of the viewport.
+      let top;
+      if (rect.top - barH - margin < margin) {
+        top = rect.bottom + window.scrollY + margin;
+      } else {
+        top = rect.top + window.scrollY - barH - margin;
+      }
+
+      // Horizontal: center on selection, clamp to viewport edges.
+      let left = rect.left + window.scrollX + rect.width / 2 - barW / 2;
+      const minLeft = window.scrollX + margin;
+      const maxLeft = window.scrollX + document.documentElement.clientWidth - barW - margin;
+      left = Math.max(minLeft, Math.min(left, maxLeft));
+
+      bar.style.top  = top + 'px';
+      bar.style.left = left + 'px';
     }
 
     function updateBar() {
@@ -1597,9 +1615,17 @@
       tooltipEl.appendChild(hint);
       document.body.appendChild(tooltipEl);
       const rect = span.getBoundingClientRect();
-      const top = rect.bottom + window.scrollY + 8;
+      const tH = tooltipEl.offsetHeight;
+      const tW = tooltipEl.offsetWidth;
+      // Prefer below; flip above if no room at the bottom.
+      let top;
+      if (window.innerHeight - rect.bottom < tH + 16) {
+        top = rect.top + window.scrollY - tH - 8;
+      } else {
+        top = rect.bottom + window.scrollY + 8;
+      }
       const left = Math.max(8, Math.min(rect.left + window.scrollX,
-        window.scrollX + window.innerWidth - tooltipEl.offsetWidth - 8));
+        window.scrollX + document.documentElement.clientWidth - tW - 8));
       tooltipEl.style.top = top + 'px';
       tooltipEl.style.left = left + 'px';
     }
