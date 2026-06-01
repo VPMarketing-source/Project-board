@@ -383,6 +383,87 @@
     .tw-col  { min-height: auto; border-right: 0; }
   }
 
+  /* ─────────────────────────────────────────────────────────────────
+     Shared styles for rich content authored in the Personal Planner
+     and rendered on the home page (Notes mirror + This Week strip):
+     Apple Notes-style checkboxes, annotated text, lists.
+     Mirrors the planner's CSS so the same HTML reads identically here.
+     ───────────────────────────────────────────────────────────────── */
+
+  /* Checkbox todos */
+  .notes-mirror-body .pc-todo,
+  .tw-body .pc-todo {
+    display: flex; align-items: flex-start; gap: 8px; margin: 4px 0; line-height: 1.55;
+  }
+  .notes-mirror-body .pc-todo-box,
+  .tw-body .pc-todo-box {
+    appearance: none; -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 18px; height: 18px;
+    margin-top: 3px;
+    border: 2px solid #c7c2a9;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    position: relative;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .notes-mirror-body .pc-todo-box:hover,
+  .tw-body .pc-todo-box:hover { border-color: #a86b14; }
+  .notes-mirror-body .pc-todo-box:checked,
+  .tw-body .pc-todo-box:checked { background: #a86b14; border-color: #a86b14; }
+  .notes-mirror-body .pc-todo-box:checked::after,
+  .tw-body .pc-todo-box:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px; top: 0;
+    width: 5px; height: 10px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .notes-mirror-body .pc-todo-text,
+  .tw-body .pc-todo-text {
+    flex: 1 1 auto; min-width: 0;
+    outline: none;
+    transition: color 160ms ease, text-decoration-color 160ms ease;
+  }
+  .notes-mirror-body .pc-todo.is-checked .pc-todo-text,
+  .tw-body .pc-todo.is-checked .pc-todo-text {
+    color: #9a9684;
+    text-decoration: line-through;
+    text-decoration-color: rgba(168, 107, 20, 0.5);
+  }
+
+  /* Annotated text (read-only on home — clicks open the planner) */
+  .notes-mirror-body .annotated,
+  .tw-body .annotated {
+    background: rgba(254, 243, 199, 0.7);
+    border-bottom: 1.5px solid #f59e0b;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+  .notes-mirror-body .annotated::after,
+  .tw-body .annotated::after {
+    content: '📝';
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.85em;
+    line-height: 1;
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    border-radius: 4px;
+    padding: 1px 4px;
+    vertical-align: 1px;
+  }
+
+  /* Pasted-in lists */
+  .notes-mirror-body ul, .tw-body ul,
+  .notes-mirror-body ol, .tw-body ol { margin: 4px 0; padding-left: 20px; }
+  .notes-mirror-body ul, .tw-body ul { list-style: disc; }
+  .notes-mirror-body ol, .tw-body ol { list-style: decimal; }
+  .notes-mirror-body li, .tw-body li { margin: 2px 0; }
+
   .hint {
     margin-top: 28px;
     padding: 14px 18px;
@@ -781,6 +862,47 @@
     body.innerHTML = parsed.html;
   })
   .catch(() => {});
+})();
+
+/* =========================================================================
+   Hydrate + wire checkbox todos rendered on the home page.
+   Same behaviour as the planner: clicks toggle .is-checked + the `checked`
+   attribute, then fire the host element's input event so the surrounding
+   widget (Notes mirror or This Week) persists + pushes to Supabase.
+   ========================================================================= */
+(function bootHomeTodos() {
+  function hydrate(root) {
+    (root || document).querySelectorAll('.pc-todo').forEach((todo) => {
+      const box = todo.querySelector('.pc-todo-box');
+      if (box && box.hasAttribute('checked')) {
+        box.checked = true;
+        todo.classList.add('is-checked');
+      }
+    });
+  }
+  hydrate();
+  new MutationObserver((muts) => {
+    for (const m of muts) {
+      m.addedNodes.forEach((n) => {
+        if (n.nodeType !== 1) return;
+        if (n.classList && n.classList.contains('pc-todo')) hydrate(n.parentNode);
+        else if (n.querySelector && n.querySelector('.pc-todo')) hydrate(n);
+      });
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener('change', (e) => {
+    const box = e.target;
+    if (!box.classList || !box.classList.contains('pc-todo-box')) return;
+    const todo = box.closest('.pc-todo');
+    if (!todo) return;
+    if (box.checked) { box.setAttribute('checked', ''); todo.classList.add('is-checked'); }
+    else             { box.removeAttribute('checked');  todo.classList.remove('is-checked'); }
+    // Fire input on the closest contenteditable host so its existing
+    // input listener saves the new HTML to localStorage + Supabase.
+    const host = box.closest('[contenteditable="true"]');
+    if (host) host.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 })();
 </script>
 </body>
