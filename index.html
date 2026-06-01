@@ -257,6 +257,45 @@
   .tile-meta-dot.is-recent  { background: #d4a017; }
   .tile-meta-dot.is-stale   { background: #b86040; }
 
+  /* Notes mirror — same content as the Personal Planner's Notes box. */
+  .notes-mirror {
+    margin: 28px 0 0;
+    background: #f6efde;
+    border: 1px solid #ebe2c8;
+    border-left: 4px solid #b86040;
+    border-radius: 6px;
+    padding: 16px 22px 20px;
+  }
+  .notes-mirror-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #b86040;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .notes-mirror-body {
+    min-height: 64px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #2b2f3a;
+    outline: none;
+    overflow-wrap: anywhere;
+  }
+  .notes-mirror-body:empty::before {
+    content: attr(data-placeholder);
+    color: #b8af96;
+    font-style: italic;
+  }
+  .notes-mirror-body:focus-visible {
+    background: rgba(184, 96, 64, 0.04);
+    border-radius: 4px;
+  }
+  /* Tables pasted from Sheets/Docs keep readable layout inside the mirror */
+  .notes-mirror-body table { border-collapse: collapse; margin: 6px 0; }
+  .notes-mirror-body td, .notes-mirror-body th { border: 1px solid #d9d0b3; padding: 4px 10px; }
+
   /* This Week — mirrors the Personal Planner's day-cell view. Reads/writes
      the same localStorage key (pc-ops::vpm::calendar::v1::freeform) so the
      two surfaces stay in sync on the same device. */
@@ -375,6 +414,14 @@
   </div>
 
   <div class="tile-grid" id="pinned-grid"></div>
+
+  <section class="notes-mirror" id="notes-mirror">
+    <div class="notes-mirror-label">Notes</div>
+    <div class="notes-mirror-body"
+         contenteditable="true"
+         id="notes-mirror-body"
+         data-placeholder="Notes from the Personal Planner show up here…"></div>
+  </section>
 
   <section class="tw-wrap" id="this-week-wrap">
     <div class="tw-head">
@@ -658,6 +705,82 @@
     render();
   })
   .catch(() => { /* offline — local copy still shown */ });
+})();
+
+/* =========================================================================
+   Notes mirror — same content as the Personal Planner's Notes box.
+   Reads/writes pc-ops::vpm::pinned::v1 (shape: {"html": "..."}), then
+   debounces a Supabase upsert so cross-device edits propagate.
+   ========================================================================= */
+(function bootNotesMirror() {
+  const STORE_KEY = 'pc-ops::vpm::pinned::v1';
+  const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
+  const body = document.getElementById('notes-mirror-body');
+  if (!body) return;
+
+  function readLocalHtml() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw);
+      return (parsed && typeof parsed.html === 'string') ? parsed.html : '';
+    } catch (_) { return ''; }
+  }
+  function writeLocal(html) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ html: html })); } catch (_) {}
+  }
+
+  // Paint with whatever is in localStorage first
+  body.innerHTML = readLocalHtml();
+
+  let pushTimer = null;
+  function pushToSupabase(rawJson) {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      fetch(`${SUPABASE_URL}/rest/v1/planner_state?on_conflict=client_id,key`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify([{
+          client_id: 'vpm',
+          key: STORE_KEY,
+          value: { raw: rawJson },
+          updated_at: new Date().toISOString(),
+        }]),
+      }).catch(() => {});
+    }, 400);
+  }
+
+  body.addEventListener('input', () => {
+    const html = body.innerHTML;
+    writeLocal(html);
+    pushToSupabase(JSON.stringify({ html: html }));
+  });
+
+  // Pull the latest value from Supabase on load, but only if the user
+  // isn't already editing the mirror (don't clobber an in-flight edit).
+  fetch(`${SUPABASE_URL}/rest/v1/planner_state?select=value&client_id=eq.vpm&key=eq.${encodeURIComponent(STORE_KEY)}`, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
+  })
+  .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+  .then((rows) => {
+    if (!rows || !rows.length) return;
+    const raw = rows[0].value && rows[0].value.raw;
+    if (typeof raw !== 'string') return;
+    if (document.activeElement === body) return;
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (_) { return; }
+    if (!parsed || typeof parsed.html !== 'string') return;
+    if (parsed.html === body.innerHTML) return;
+    localStorage.setItem(STORE_KEY, raw);
+    body.innerHTML = parsed.html;
+  })
+  .catch(() => {});
 })();
 </script>
 </body>
