@@ -29,10 +29,15 @@
     min-height: 100vh;
   }
   .wrap {
-    max-width: 1100px;
+    /* Stretch close to the viewport so Notes + This Week have room to
+       breathe; capped on ultrawide so reading lines stay sensible. */
+    max-width: min(1800px, calc(100vw - 48px));
     margin: 0 auto;
-    padding: 64px 24px 80px;
+    padding: 48px 24px 80px;
   }
+  /* Manifesto + top stamp keep a comfortable reading width even on a wide layout */
+  .top-stamp,
+  .manifesto { max-width: 760px; margin-left: auto; margin-right: auto; }
   header.hello {
     margin-bottom: 36px;
   }
