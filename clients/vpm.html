@@ -916,6 +916,36 @@
   .cal-month.is-open .cal-month-body { display: block; }
   .cal-month-body .cal-weeks { gap: 10px; }
 
+  /* Per-month note — appears at the top of the month body, like the week
+     inline note but at the month level. */
+  .cal-month-note {
+    margin: 4px 2px 14px;
+    padding: 12px 14px;
+    background: #fbf7e9;
+    border: 1px solid #ebe2c8;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 36px;
+    color: #2b2f3a;
+    outline: none;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .cal-month-note:empty::before {
+    content: attr(data-placeholder);
+    color: #b8af96;
+    font-style: italic;
+    pointer-events: none;
+  }
+  .cal-month-note:focus-visible {
+    border-color: rgba(168, 107, 20, 0.4);
+    box-shadow: 0 0 0 3px rgba(168, 107, 20, 0.10);
+  }
+  .cal-month.is-current .cal-month-note {
+    background: #fff8e1;
+    border-color: #e8c97a;
+  }
+
   /* "Calendar" wrapper toggle */
   .cal-wrap-head {
     display: inline-flex;
@@ -2084,6 +2114,8 @@
         const section = document.createElement('section');
         section.className = 'cal-month' + (isOpen ? ' is-open' : '') + (isCurrent ? ' is-current' : '');
         section.dataset.monthKey = monthKey;
+        const monthInlineAll = JSON.parse(localStorage.getItem(STORE_KEY + '::monthInline') || '{}');
+        const monthNote = monthInlineAll[monthKey] || '';
         section.innerHTML = `
           <button type="button" class="cal-month-head" aria-expanded="${isOpen}">
             <span class="cal-month-chev" aria-hidden="true">
@@ -2093,6 +2125,7 @@
             <span class="cal-month-year">${m.getFullYear()}</span>
           </button>
           <div class="cal-month-body">
+            <div class="cal-month-note" contenteditable="true" data-month-key="${monthKey}" data-placeholder="Notes, goals, planning for ${MONTH_NAMES[m.getMonth()]}…">${monthNote}</div>
             <div class="cal-weeks"></div>
           </div>
         `;
@@ -2107,6 +2140,17 @@
           cur[monthKey] = nowOpen;
           localStorage.setItem(STORE_KEY + '::monthsOpen', JSON.stringify(cur));
         });
+
+        // Per-month inline note — same pattern as the week inline note.
+        const noteEl = section.querySelector('.cal-month-note');
+        noteEl.addEventListener('input', () => {
+          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::monthInline') || '{}');
+          const stripped = noteEl.innerHTML.replace(/<br\s*\/?>/gi, '').trim();
+          if (!stripped) delete cur[monthKey]; else cur[monthKey] = noteEl.innerHTML;
+          localStorage.setItem(STORE_KEY + '::monthInline', JSON.stringify(cur));
+        });
+        // Don't let clicks inside the note bubble up to the head and toggle.
+        noteEl.addEventListener('click', (e) => e.stopPropagation());
 
         monthsEl.appendChild(section);
       }
