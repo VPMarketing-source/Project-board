@@ -578,6 +578,24 @@
     const mi = MONTHS[m[1].slice(0, 3)];
     return (mi == null) ? null : mi;
   }
+  // Wrap a sequence of pre-rendered row HTMLs with month-section headers.
+  // items: array of { date: <string>, rowHtml: <string> } in sorted order.
+  function withMonthHeaders(items) {
+    const out = [];
+    let lastMonth = -1;
+    items.forEach((it) => {
+      const mi = monthIndexOf(it.date);
+      if (mi != null && mi !== lastMonth) {
+        lastMonth = mi;
+        out.push(`<tr class="month-header"><td colspan="4">${MONTH_LABELS[mi]}</td></tr>`);
+      } else if (mi == null && lastMonth !== -2) {
+        lastMonth = -2;
+        out.push(`<tr class="month-header"><td colspan="4">No date</td></tr>`);
+      }
+      out.push(it.rowHtml);
+    });
+    return out.join('');
+  }
   function renderCampaigns() {
     CAMPAIGNS.sort((a, b) => parseSendDate(a.date) - parseSendDate(b.date));
     const tbody = document.getElementById('campaign-rows');
@@ -588,19 +606,9 @@
       saveStore(KEYS.campaigns, CAMPAIGNS);
       return;
     }
-    const rows = [];
-    // -1 = "no header rendered yet", -2 = "no-date group rendered"
-    let lastMonth = -1;
-    CAMPAIGNS.forEach((c, i) => {
-      const mi = monthIndexOf(c.date);
-      if (mi != null && mi !== lastMonth) {
-        lastMonth = mi;
-        rows.push(`<tr class="month-header"><td colspan="4">${MONTH_LABELS[mi]}</td></tr>`);
-      } else if (mi == null && lastMonth !== -2) {
-        lastMonth = -2;
-        rows.push(`<tr class="month-header"><td colspan="4">No date</td></tr>`);
-      }
-      rows.push(`
+    tbody.innerHTML = withMonthHeaders(CAMPAIGNS.map((c, i) => ({
+      date: c.date,
+      rowHtml: `
         <tr data-i="${i}">
           <td class="col-client">${escapeHtml(c.name)}</td>
           <td class="col-date">${escapeHtml(c.date)}</td>
@@ -612,9 +620,8 @@
           <td class="col-link">
             <a class="link-btn" href="${escapeHtml(c.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
           </td>
-        </tr>`);
-    });
-    tbody.innerHTML = rows.join('');
+        </tr>`,
+    })));
     document.getElementById('camp-count').textContent = '(' + CAMPAIGNS.length + ')';
     saveStore(KEYS.campaigns, CAMPAIGNS);
   }
@@ -643,19 +650,22 @@
       saveStore(KEYS.retainer, RETAINER);
       return;
     }
-    tbody.innerHTML = RETAINER.map((t, i) => `
-      <tr data-i="${i}">
-        <td class="col-client">${escapeHtml(t.name)}</td>
-        <td class="col-date">${escapeHtml(t.date)}</td>
-        <td class="col-status">
-          <span class="st st-task-${t.status}" data-action="cycle-task-status" data-i="${i}" title="Click to change">
-            <span class="dot"></span>${TASK_STATUS_LABEL[t.status] || t.status}
-          </span>
-        </td>
-        <td class="col-link">
-          <a class="link-btn" href="${escapeHtml(t.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
-        </td>
-      </tr>`).join('');
+    tbody.innerHTML = withMonthHeaders(RETAINER.map((t, i) => ({
+      date: t.date,
+      rowHtml: `
+        <tr data-i="${i}">
+          <td class="col-client">${escapeHtml(t.name)}</td>
+          <td class="col-date">${escapeHtml(t.date)}</td>
+          <td class="col-status">
+            <span class="st st-task-${t.status}" data-action="cycle-task-status" data-i="${i}" title="Click to change">
+              <span class="dot"></span>${TASK_STATUS_LABEL[t.status] || t.status}
+            </span>
+          </td>
+          <td class="col-link">
+            <a class="link-btn" href="${escapeHtml(t.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
+          </td>
+        </tr>`,
+    })));
     document.getElementById('ret-count').textContent = '(' + RETAINER.length + ')';
     saveStore(KEYS.retainer, RETAINER);
   }
@@ -681,19 +691,22 @@
       saveStore(KEYS.tasks, TASKS);
       return;
     }
-    tbody.innerHTML = TASKS.map((t, i) => `
-      <tr data-i="${i}">
-        <td class="col-client">${escapeHtml(t.name)}</td>
-        <td class="col-date">${escapeHtml(t.date)}</td>
-        <td class="col-status">
-          <span class="st st-task-${t.status}" data-action="cycle-tasks-status" data-i="${i}" title="Click to change">
-            <span class="dot"></span>${TASK_STATUS_LABEL[t.status] || t.status}
-          </span>
-        </td>
-        <td class="col-link">
-          <a class="link-btn" href="${escapeHtml(t.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
-        </td>
-      </tr>`).join('');
+    tbody.innerHTML = withMonthHeaders(TASKS.map((t, i) => ({
+      date: t.date,
+      rowHtml: `
+        <tr data-i="${i}">
+          <td class="col-client">${escapeHtml(t.name)}</td>
+          <td class="col-date">${escapeHtml(t.date)}</td>
+          <td class="col-status">
+            <span class="st st-task-${t.status}" data-action="cycle-tasks-status" data-i="${i}" title="Click to change">
+              <span class="dot"></span>${TASK_STATUS_LABEL[t.status] || t.status}
+            </span>
+          </td>
+          <td class="col-link">
+            <a class="link-btn" href="${escapeHtml(t.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
+          </td>
+        </tr>`,
+    })));
     document.getElementById('tasks-count').textContent = '(' + TASKS.length + ')';
     saveStore(KEYS.tasks, TASKS);
   }
