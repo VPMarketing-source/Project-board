@@ -215,6 +215,21 @@ button { font-family: inherit; cursor: pointer; }
 .ctable .col-status { width: 22%; }
 .ctable .col-link   { width: 80px; text-align: right; }
 
+/* Month group headers in the campaigns table */
+.ctable tr.month-header td {
+  padding: 18px 14px 6px;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ctable tbody tr.month-header + tr td { border-top: 0; }
+.ctable tbody tr.month-header:hover { background: transparent; }
+
 .st { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid currentColor; padding: 2px 8px 2px 7px; border-radius: 999px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1; cursor: pointer; user-select: none; }
 .st .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .st:hover { box-shadow: 0 0 0 1px currentColor; }

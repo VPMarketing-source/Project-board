@@ -570,6 +570,14 @@
       : `No ${noun} yet — connect ClickUp to sync, or add rows by editing this file.`;
     return `<tr class="empty-row"><td colspan="4">${msg}</td></tr>`;
   }
+  const MONTH_LABELS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function monthIndexOf(dateStr) {
+    if (!dateStr) return null;
+    const m = String(dateStr).toLowerCase().match(/\d{1,2}\s+([a-z]{3,})/);
+    if (!m) return null;
+    const mi = MONTHS[m[1].slice(0, 3)];
+    return (mi == null) ? null : mi;
+  }
   function renderCampaigns() {
     CAMPAIGNS.sort((a, b) => parseSendDate(a.date) - parseSendDate(b.date));
     const tbody = document.getElementById('campaign-rows');
@@ -580,19 +588,33 @@
       saveStore(KEYS.campaigns, CAMPAIGNS);
       return;
     }
-    tbody.innerHTML = CAMPAIGNS.map((c, i) => `
-      <tr data-i="${i}">
-        <td class="col-client">${escapeHtml(c.name)}</td>
-        <td class="col-date">${escapeHtml(c.date)}</td>
-        <td class="col-status">
-          <span class="st st-${c.status}" data-action="cycle-status" data-i="${i}" title="Click to change">
-            <span class="dot"></span>${STATUS_LABEL[c.status] || c.status}
-          </span>
-        </td>
-        <td class="col-link">
-          <a class="link-btn" href="${escapeHtml(c.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
-        </td>
-      </tr>`).join('');
+    const rows = [];
+    // -1 = "no header rendered yet", -2 = "no-date group rendered"
+    let lastMonth = -1;
+    CAMPAIGNS.forEach((c, i) => {
+      const mi = monthIndexOf(c.date);
+      if (mi != null && mi !== lastMonth) {
+        lastMonth = mi;
+        rows.push(`<tr class="month-header"><td colspan="4">${MONTH_LABELS[mi]}</td></tr>`);
+      } else if (mi == null && lastMonth !== -2) {
+        lastMonth = -2;
+        rows.push(`<tr class="month-header"><td colspan="4">No date</td></tr>`);
+      }
+      rows.push(`
+        <tr data-i="${i}">
+          <td class="col-client">${escapeHtml(c.name)}</td>
+          <td class="col-date">${escapeHtml(c.date)}</td>
+          <td class="col-status">
+            <span class="st st-${c.status}" data-action="cycle-status" data-i="${i}" title="Click to change">
+              <span class="dot"></span>${STATUS_LABEL[c.status] || c.status}
+            </span>
+          </td>
+          <td class="col-link">
+            <a class="link-btn" href="${escapeHtml(c.url || '#')}" target="_blank" rel="noopener noreferrer" aria-label="Open in ClickUp" title="Open in ClickUp">${linkIconSVG}</a>
+          </td>
+        </tr>`);
+    });
+    tbody.innerHTML = rows.join('');
     document.getElementById('camp-count').textContent = '(' + CAMPAIGNS.length + ')';
     saveStore(KEYS.campaigns, CAMPAIGNS);
   }
