@@ -916,6 +916,31 @@
   .cal-month.is-open .cal-month-body { display: block; }
   .cal-month-body .cal-weeks { gap: 10px; }
 
+  /* Undo button on a day column. Sits on the column, not inside the
+     editable area, so it never becomes part of the day's content.
+     Appears on hover, and only when there is something to undo. */
+  .cell-revert {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(17,19,26,0.12);
+    border-radius: 50%;
+    color: #6c6f7a;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .cell-revert svg { width: 12px; height: 12px; }
+  .cwg-col:hover .cell-revert:not([hidden]) { display: inline-flex; }
+  .cell-revert:hover { color: #a86b14; border-color: #a86b14; }
+  .cell-revert:focus-visible { display: inline-flex; outline: 2px solid #2960ff; outline-offset: 1px; }
+
   /* Momentary confirmation that an edit reached storage. Deliberately
      quiet — a soft green edge on the field you just typed in. */
   .cwg-col-free.is-saved,
@@ -1955,6 +1980,104 @@
       return true;
     }
 
+    /* ── Undo history for day cells ─────────────────────────────────────
+       Keeps the last few versions of each day so an edit can be stepped
+       back. Stored under a key that does NOT begin with pc-ops:: so it is
+       never synced — undo is per-device scratch, and syncing a version
+       stack for 58 days would bloat every payload.
+
+       Granularity is the editing *burst*, not the keystroke: typing a
+       sentence is one undo step, because a per-keystroke stack would take
+       forty clicks to undo a line. A burst ends after BURST_MS idle. */
+    const UNDO_KEY  = 'plannerUndo::vpm::freeform::v1';
+    const BURST_MS  = 1500;
+    const MAX_STEPS = 12;
+    const lastEditAt = Object.create(null);
+
+    function loadUndo() {
+      try { return JSON.parse(localStorage.getItem(UNDO_KEY) || '{}') || {}; }
+      catch (_) { return {}; }
+    }
+    function saveUndo(all) {
+      try { localStorage.setItem(UNDO_KEY, JSON.stringify(all)); } catch (_) {}
+    }
+
+    /* Call with the value as it was BEFORE this edit. Only records when a
+       new burst starts, so one stack entry per continuous piece of typing. */
+    function noteEditBurst(key, prevValue) {
+      const now = Date.now();
+      const fresh = !lastEditAt[key] || (now - lastEditAt[key]) > BURST_MS;
+      lastEditAt[key] = now;
+      if (!fresh) return;
+      const all = loadUndo();
+      const stack = all[key] || [];
+      if (stack.length && stack[stack.length - 1] === (prevValue || '')) return;
+      stack.push(prevValue || '');
+      all[key] = stack.slice(-MAX_STEPS);
+      saveUndo(all);
+      refreshRevert(key);
+    }
+
+    function undoDepth(key) {
+      const stack = loadUndo()[key];
+      return stack ? stack.length : 0;
+    }
+
+    /* Steps one version back: restores it into the cell, into storage, and
+       into any other copy of that day on screen. */
+    function revertDay(key) {
+      const all = loadUndo();
+      const stack = all[key] || [];
+      if (!stack.length) return;
+      const restored = stack.pop();
+      all[key] = stack;
+      saveUndo(all);
+
+      const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
+      if (restored) cur[key] = restored; else delete cur[key];
+      localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+
+      document.querySelectorAll('.cwg-col-free[data-key="' + key + '"]').forEach((el) => {
+        el.innerHTML = restored || '';
+        flashSaved(el);
+      });
+      // Reverting is an edit in its own right; don't let it merge into the
+      // burst that follows, or the next keystroke would swallow this step.
+      delete lastEditAt[key];
+      refreshRevert(key);
+    }
+
+    function refreshRevert(key) {
+      const depth = undoDepth(key);
+      document.querySelectorAll('.cell-revert[data-key="' + key + '"]').forEach((b) => {
+        b.hidden = depth === 0;
+        b.title = 'Undo last change to this day (' + depth + ' available)';
+      });
+    }
+
+    /* The button lives on the column, never inside the contenteditable —
+       anything inside it would become part of the day's saved content. */
+    function attachRevert(freeEl, key) {
+      const col = freeEl.parentNode;
+      if (!col) return;
+      col.querySelectorAll(':scope > .cell-revert').forEach((n) => n.remove());
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell-revert';
+      b.dataset.key = key;
+      b.setAttribute('aria-label', 'Undo last change to this day');
+      b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 7"/></svg>';
+      b.hidden = undoDepth(key) === 0;
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        revertDay(key);
+      });
+      if (getComputedStyle(col).position === 'static') col.style.position = 'relative';
+      col.appendChild(b);
+      refreshRevert(key);
+    }
+
     /* Brief "Saved" tick on the cell being edited, so persistence is
        visible rather than something you have to take on trust. */
     function flashSaved(el) {
@@ -2195,10 +2318,12 @@
           const key = free.dataset.key;
           // Reseed in case the source DOM was stale.
           free.innerHTML = FREE[key] || '';
+          attachRevert(free, key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;
             const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
+            noteEditBurst(key, cur[key]);
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[key]; else cur[key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
@@ -2269,10 +2394,12 @@
         const chips = col.querySelector('.cwg-col-chips');
         const free  = col.querySelector('.cwg-col-free');
         free.innerHTML = FREE[key] || '';
+        attachRevert(free, key);
         free.addEventListener('input', () => {
           const html = free.innerHTML;
           if (!safeToPersist(free, html)) return;
           const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
+          noteEditBurst(key, cur[key]);
           // Strip empty <br>-only content so placeholder shows again.
           const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
           if (!stripped) delete cur[key]; else cur[key] = html;
@@ -2455,10 +2582,12 @@
           `;
           const free = col.querySelector('.cwg-col-free');
           free.innerHTML = FREE[d.key] || '';
+          attachRevert(free, d.key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;
             const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
+            noteEditBurst(d.key, cur[d.key]);
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[d.key]; else cur[d.key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
