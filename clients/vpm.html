@@ -2096,6 +2096,22 @@
       if (el && el !== document.activeElement && el[prop] !== value) el[prop] = value;
     }
 
+    /* A single date can be on screen several times over: in its own month,
+       again as a leading/trailing day of the adjacent month (27 Jul is both
+       July week 5 and August week 1), and again in the pinned current week.
+       Every one of those is a live editable bound to the same data-key.
+
+       Only the pinned copy used to be kept in step, so the others sat blank
+       or stale until a reload — visibly wrong, and worse than that: a blank
+       twin of a day that actually has content is one stray input away from
+       erasing it. Push each edit to every copy of that day. */
+    function mirrorDay(key, html, sourceEl) {
+      document.querySelectorAll('.cwg-col-free[data-key="' + key + '"]').forEach((el) => {
+        if (el === sourceEl || el === document.activeElement) return;
+        if (el.innerHTML !== html) el.innerHTML = html;
+      });
+    }
+
     function mountKeyDates() {
       const homePanel = document.getElementById('panel-home');
       if (!homePanel) return setTimeout(mountKeyDates, 50);
@@ -2327,11 +2343,8 @@
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[key]; else cur[key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+            mirrorDay(key, html, free);
             flashSaved(free);
-            // Mirror into the source DOM so a later re-clone shows the
-            // latest content even before a full re-render.
-            const srcCell = src.querySelector('.cwg-col-free[data-key="' + key + '"]');
-            if (srcCell && srcCell !== free) srcCell.innerHTML = html;
           });
         });
         const inlineAll = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
@@ -2404,6 +2417,7 @@
           const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
           if (!stripped) delete cur[key]; else cur[key] = html;
           localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+          mirrorDay(key, html, free);
           flashSaved(free);
         });
         const events = (state.events[key] || []).slice().sort((a, b) => {
@@ -2591,7 +2605,7 @@
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[d.key]; else cur[d.key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
-            mirrorToPinned('.cwg-col-free[data-key="' + d.key + '"]', html, 'innerHTML');
+            mirrorDay(d.key, html, free);
             flashSaved(free);
           });
           // Stop clicks on the column from bubbling up to the week-head toggle
