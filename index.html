@@ -29,8 +29,8 @@
     min-height: 100vh;
   }
   .wrap {
-    /* Stretch close to the viewport so Notes + This Week have room to
-       breathe; capped on ultrawide so reading lines stay sensible. */
+    /* Stretch close to the viewport so Notes has room to breathe;
+       capped on ultrawide so reading lines stay sensible. */
     max-width: min(1800px, calc(100vw - 48px));
     margin: 0 auto;
     padding: 48px 24px 80px;
@@ -301,107 +301,18 @@
   .notes-mirror-body table { border-collapse: collapse; margin: 6px 0; }
   .notes-mirror-body td, .notes-mirror-body th { border: 1px solid #d9d0b3; padding: 4px 10px; }
 
-  /* This Week — mirrors the Personal Planner's day-cell view. Reads/writes
-     the same localStorage key (pc-ops::vpm::calendar::v1::freeform) so the
-     two surfaces stay in sync on the same device. */
-  .tw-wrap {
-    margin: 28px 0 32px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 16px 18px 20px;
-  }
-  .tw-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .tw-eyebrow {
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #2960ff;
-    font-weight: 700;
-  }
-  .tw-range {
-    font-size: 13px;
-    color: var(--ink-mute);
-  }
-  .tw-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    border-left: 1px solid var(--line);
-    border-top: 1px solid var(--line);
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .tw-col {
-    border-right: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    display: flex;
-    flex-direction: column;
-    min-height: 220px;
-    background: #fff;
-  }
-  .tw-col.is-weekend { background: #faf4e3; }
-  .tw-col.is-today   { background: #eef2ff; }
-  .tw-col-head {
-    text-align: center;
-    padding: 8px 4px 6px;
-    border-bottom: 1px solid var(--line);
-    background: rgba(255,255,255,0.4);
-  }
-  .tw-col.is-today .tw-col-head { background: #eef2ff; }
-  .tw-dow {
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ink-mute);
-    font-weight: 600;
-  }
-  .tw-col.is-today .tw-dow { color: #2960ff; }
-  .tw-num {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--ink);
-    margin-top: 2px;
-  }
-  .tw-col.is-today .tw-num { color: #2960ff; }
-  .tw-body {
-    flex: 1 1 auto;
-    padding: 10px 10px 14px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--ink);
-    outline: none;
-    overflow-wrap: anywhere;
-  }
-  .tw-body:empty::before {
-    content: attr(data-placeholder);
-    color: #b8af96;
-    font-style: italic;
-  }
-  .tw-body:focus-visible { background: rgba(41, 96, 255, 0.04); }
-  @media (max-width: 760px) {
-    .tw-grid { grid-template-columns: 1fr; }
-    .tw-col  { min-height: auto; border-right: 0; }
-  }
-
   /* ─────────────────────────────────────────────────────────────────
      Shared styles for rich content authored in the Personal Planner
-     and rendered on the home page (Notes mirror + This Week strip):
+     and rendered on the home page (Notes mirror):
      Apple Notes-style checkboxes, annotated text, lists.
      Mirrors the planner's CSS so the same HTML reads identically here.
      ───────────────────────────────────────────────────────────────── */
 
   /* Checkbox todos */
-  .notes-mirror-body .pc-todo,
-  .tw-body .pc-todo {
+  .notes-mirror-body .pc-todo {
     display: flex; align-items: flex-start; gap: 8px; margin: 4px 0; line-height: 1.55;
   }
-  .notes-mirror-body .pc-todo-box,
-  .tw-body .pc-todo-box {
+  .notes-mirror-body .pc-todo-box {
     appearance: none; -webkit-appearance: none;
     flex: 0 0 auto;
     width: 18px; height: 18px;
@@ -413,12 +324,9 @@
     position: relative;
     transition: background 120ms ease, border-color 120ms ease;
   }
-  .notes-mirror-body .pc-todo-box:hover,
-  .tw-body .pc-todo-box:hover { border-color: #a86b14; }
-  .notes-mirror-body .pc-todo-box:checked,
-  .tw-body .pc-todo-box:checked { background: #a86b14; border-color: #a86b14; }
-  .notes-mirror-body .pc-todo-box:checked::after,
-  .tw-body .pc-todo-box:checked::after {
+  .notes-mirror-body .pc-todo-box:hover { border-color: #a86b14; }
+  .notes-mirror-body .pc-todo-box:checked { background: #a86b14; border-color: #a86b14; }
+  .notes-mirror-body .pc-todo-box:checked::after {
     content: '';
     position: absolute;
     left: 4px; top: 0;
@@ -427,29 +335,25 @@
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
-  .notes-mirror-body .pc-todo-text,
-  .tw-body .pc-todo-text {
+  .notes-mirror-body .pc-todo-text {
     flex: 1 1 auto; min-width: 0;
     outline: none;
     transition: color 160ms ease, text-decoration-color 160ms ease;
   }
-  .notes-mirror-body .pc-todo.is-checked .pc-todo-text,
-  .tw-body .pc-todo.is-checked .pc-todo-text {
+  .notes-mirror-body .pc-todo.is-checked .pc-todo-text {
     color: #9a9684;
     text-decoration: line-through;
     text-decoration-color: rgba(168, 107, 20, 0.5);
   }
 
   /* Annotated text (read-only on home — clicks open the planner) */
-  .notes-mirror-body .annotated,
-  .tw-body .annotated {
+  .notes-mirror-body .annotated {
     background: rgba(254, 243, 199, 0.7);
     border-bottom: 1.5px solid #f59e0b;
     border-radius: 2px;
     padding: 0 2px;
   }
-  .notes-mirror-body .annotated::after,
-  .tw-body .annotated::after {
+  .notes-mirror-body .annotated::after {
     content: '📝';
     display: inline-block;
     margin-left: 5px;
@@ -463,11 +367,11 @@
   }
 
   /* Pasted-in lists */
-  .notes-mirror-body ul, .tw-body ul,
-  .notes-mirror-body ol, .tw-body ol { margin: 4px 0; padding-left: 20px; }
-  .notes-mirror-body ul, .tw-body ul { list-style: disc; }
-  .notes-mirror-body ol, .tw-body ol { list-style: decimal; }
-  .notes-mirror-body li, .tw-body li { margin: 2px 0; }
+  .notes-mirror-body ul,
+  .notes-mirror-body ol { margin: 4px 0; padding-left: 20px; }
+  .notes-mirror-body ul { list-style: disc; }
+  .notes-mirror-body ol { list-style: decimal; }
+  .notes-mirror-body li { margin: 2px 0; }
 
   .hint {
     margin-top: 28px;
@@ -507,14 +411,6 @@
          contenteditable="true"
          id="notes-mirror-body"
          data-placeholder="Notes from the Personal Planner show up here…"></div>
-  </section>
-
-  <section class="tw-wrap" id="this-week-wrap">
-    <div class="tw-head">
-      <span class="tw-eyebrow">This Week</span>
-      <span class="tw-range" id="tw-range"></span>
-    </div>
-    <div class="tw-grid" id="tw-grid"></div>
   </section>
 
   <div class="section-head">
@@ -660,24 +556,14 @@
 })();
 
 /* =========================================================================
-   This Week — Mon–Sun day-cell strip mirroring the Personal Planner.
-   Reads + writes the same localStorage key the planner uses
-   (pc-ops::vpm::calendar::v1::freeform), so notes you type here show
-   up on the planner and vice versa on the same browser.
-
-   Also pulls the latest value from Supabase on load so the widget
-   reflects whatever your last device wrote, then writes back to
-   Supabase on debounce so other devices see your edits without
-   needing the planner page.
-   ========================================================================= */
-/* =========================================================================
    Write-safety guard for the home page's editable widgets.
 
    This page does NOT load shared/sync.js — it talks to Supabase directly —
-   so it has none of sync.js's staleness protection and needs its own. Each
-   widget paints from localStorage immediately, then fetches the server copy.
-   Between those two moments the DOM may be showing stale or empty content,
-   and any save derived from it overwrites good server data. Two rules:
+   so it has none of sync.js's staleness protection and needs its own. The
+   Notes mirror paints from localStorage immediately, then fetches the
+   server copy. Between those two moments the DOM may be showing stale or
+   empty content, and any save derived from it overwrites good server
+   data. Two rules:
 
      1. Persist nothing until that first fetch has settled (hydrated).
      2. Never let a field that had content be emptied by something other
@@ -700,139 +586,6 @@ function makeWriteGuard(isHydrated) {
     return true;
   };
 }
-
-(function bootThisWeek() {
-  const STORE_KEY = 'pc-ops::vpm::calendar::v1::freeform';
-  const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
-  const DOW_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  function ymd(d) {
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
-  function startOfWeek(d) {
-    const dow = (d.getDay() + 6) % 7; // 0 = Mon
-    const m = new Date(d);
-    m.setHours(0, 0, 0, 0);
-    m.setDate(d.getDate() - dow);
-    return m;
-  }
-  function escape(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-
-  const today = new Date();
-  const todayKey = ymd(today);
-  const monday = startOfWeek(today);
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    days.push(d);
-  }
-  const sunday = days[6];
-
-  document.getElementById('tw-range').textContent =
-    days[0].getDate() + ' ' + MONTH_SHORT[days[0].getMonth()] +
-    ' – ' +
-    sunday.getDate() + ' ' + MONTH_SHORT[sunday.getMonth()];
-
-  let hydrated = false;
-  const safeToPersist = makeWriteGuard(() => hydrated);
-
-  function loadFree() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; }
-    catch (_) { return {}; }
-  }
-
-  function render() {
-    const grid = document.getElementById('tw-grid');
-    const free = loadFree();
-    grid.innerHTML = days.map((d, i) => {
-      const k = ymd(d);
-      const isToday = k === todayKey;
-      const isWeekend = i >= 5;
-      const cls = 'tw-col' + (isToday ? ' is-today' : '') + (!isToday && isWeekend ? ' is-weekend' : '');
-      return `
-        <div class="${cls}">
-          <div class="tw-col-head">
-            <div class="tw-dow">${DOW_NAMES[i]}</div>
-            <div class="tw-num">${d.getDate()}</div>
-          </div>
-          <div class="tw-body" contenteditable="true" data-key="${escape(k)}" data-placeholder="Type notes for the day…">${free[k] || ''}</div>
-        </div>
-      `;
-    }).join('');
-    wire();
-  }
-
-  let pushTimer = null;
-  function pushToSupabase(value) {
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => {
-      fetch(`${SUPABASE_URL}/rest/v1/planner_state?on_conflict=client_id,key`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates',
-        },
-        body: JSON.stringify([{
-          client_id: 'vpm',
-          key: STORE_KEY,
-          value: { raw: value },
-          updated_at: new Date().toISOString(),
-        }]),
-      }).catch(() => { /* offline — local copy still saved */ });
-    }, 400);
-  }
-
-  function wire() {
-    document.querySelectorAll('#tw-grid .tw-body').forEach((el) => {
-      el.addEventListener('input', () => {
-        const k = el.dataset.key;
-        const free = loadFree();
-        // Refuse writes that would clear a day the user isn't actually in,
-        // and any write at all before the server copy has landed — those are
-        // stale-DOM writebacks, not edits. See notesGuard below.
-        if (!safeToPersist(el, el.innerHTML, free[k])) return;
-        const stripped = el.innerHTML.replace(/<br\s*\/?>/gi, '').trim();
-        if (!stripped) delete free[k]; else free[k] = el.innerHTML;
-        const serialized = JSON.stringify(free);
-        try { localStorage.setItem(STORE_KEY, serialized); } catch (_) {}
-        pushToSupabase(serialized);
-      });
-    });
-  }
-
-  // Initial render with whatever is in localStorage, then refresh from Supabase
-  render();
-
-  fetch(`${SUPABASE_URL}/rest/v1/planner_state?select=value,updated_at&client_id=eq.vpm&key=eq.${encodeURIComponent(STORE_KEY)}`, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
-  })
-  .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-  .then((rows) => {
-    if (!rows || !rows.length) return;
-    const raw = rows[0].value && rows[0].value.raw;
-    if (typeof raw !== 'string') return;
-    const localRaw = localStorage.getItem(STORE_KEY);
-    if (localRaw === raw) return; // already up to date
-    // Only overwrite local if no element is currently being edited.
-    const active = document.activeElement;
-    if (active && active.classList && active.classList.contains('tw-body')) return;
-    localStorage.setItem(STORE_KEY, raw);
-    render();
-  })
-  // Settled either way: on failure the local copy becomes authoritative, so
-  // the board stays editable offline rather than silently refusing saves.
-  .catch(() => { /* offline — local copy still shown */ })
-  .then(() => { hydrated = true; });
-})();
 
 /* =========================================================================
    Notes mirror — same content as the Personal Planner's Notes box.
@@ -923,7 +676,7 @@ function makeWriteGuard(isHydrated) {
    Hydrate + wire checkbox todos rendered on the home page.
    Same behaviour as the planner: clicks toggle .is-checked + the `checked`
    attribute, then fire the host element's input event so the surrounding
-   widget (Notes mirror or This Week) persists + pushes to Supabase.
+   widget (the Notes mirror) persists + pushes to Supabase.
    ========================================================================= */
 (function bootHomeTodos() {
   function hydrate(root) {
