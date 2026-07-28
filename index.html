@@ -670,6 +670,37 @@
    Supabase on debounce so other devices see your edits without
    needing the planner page.
    ========================================================================= */
+/* =========================================================================
+   Write-safety guard for the home page's editable widgets.
+
+   This page does NOT load shared/sync.js — it talks to Supabase directly —
+   so it has none of sync.js's staleness protection and needs its own. Each
+   widget paints from localStorage immediately, then fetches the server copy.
+   Between those two moments the DOM may be showing stale or empty content,
+   and any save derived from it overwrites good server data. Two rules:
+
+     1. Persist nothing until that first fetch has settled (hydrated).
+     2. Never let a field that had content be emptied by something other
+        than the user typing in it. A real edit always has focus; the
+        synthetic `input` event fired by a checkbox toggle does not, and it
+        serialises the entire host element.
+   ========================================================================= */
+function isVisuallyEmptyHtml(html) {
+  return !String(html == null ? '' : html)
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, '')
+    .replace(/[\s​ ]/g, '')
+    .length;
+}
+function makeWriteGuard(isHydrated) {
+  return function safeToPersist(el, nextHtml, prevHtml) {
+    if (!isHydrated()) return false;
+    if (isVisuallyEmptyHtml(nextHtml) && !isVisuallyEmptyHtml(prevHtml) &&
+        document.activeElement !== el) return false;
+    return true;
+  };
+}
+
 (function bootThisWeek() {
   const STORE_KEY = 'pc-ops::vpm::calendar::v1::freeform';
   const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
@@ -708,6 +739,9 @@
     days[0].getDate() + ' ' + MONTH_SHORT[days[0].getMonth()] +
     ' – ' +
     sunday.getDate() + ' ' + MONTH_SHORT[sunday.getMonth()];
+
+  let hydrated = false;
+  const safeToPersist = makeWriteGuard(() => hydrated);
 
   function loadFree() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; }
@@ -762,6 +796,10 @@
       el.addEventListener('input', () => {
         const k = el.dataset.key;
         const free = loadFree();
+        // Refuse writes that would clear a day the user isn't actually in,
+        // and any write at all before the server copy has landed — those are
+        // stale-DOM writebacks, not edits. See notesGuard below.
+        if (!safeToPersist(el, el.innerHTML, free[k])) return;
         const stripped = el.innerHTML.replace(/<br\s*\/?>/gi, '').trim();
         if (!stripped) delete free[k]; else free[k] = el.innerHTML;
         const serialized = JSON.stringify(free);
@@ -790,7 +828,10 @@
     localStorage.setItem(STORE_KEY, raw);
     render();
   })
-  .catch(() => { /* offline — local copy still shown */ });
+  // Settled either way: on failure the local copy becomes authoritative, so
+  // the board stays editable offline rather than silently refusing saves.
+  .catch(() => { /* offline — local copy still shown */ })
+  .then(() => { hydrated = true; });
 })();
 
 /* =========================================================================
@@ -816,6 +857,9 @@
   function writeLocal(html) {
     try { localStorage.setItem(STORE_KEY, JSON.stringify({ html: html })); } catch (_) {}
   }
+
+  let hydrated = false;
+  const safeToPersist = makeWriteGuard(() => hydrated);
 
   // Paint with whatever is in localStorage first
   body.innerHTML = readLocalHtml();
@@ -844,6 +888,11 @@
 
   body.addEventListener('input', () => {
     const html = body.innerHTML;
+    // This is the exact write that destroyed the Notes box: the box paints
+    // empty from stale localStorage, then any input event — including the
+    // synthetic one a checkbox toggle fires — pushes that emptiness to the
+    // server. Refuse it unless the user is genuinely typing in the box.
+    if (!safeToPersist(body, html, readLocalHtml())) return;
     writeLocal(html);
     pushToSupabase(JSON.stringify({ html: html }));
   });
@@ -866,7 +915,8 @@
     localStorage.setItem(STORE_KEY, raw);
     body.innerHTML = parsed.html;
   })
-  .catch(() => {});
+  .catch(() => {})
+  .then(() => { hydrated = true; });
 })();
 
 /* =========================================================================

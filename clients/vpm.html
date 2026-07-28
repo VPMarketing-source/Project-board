@@ -1894,48 +1894,71 @@
     const KD_BODY_KEY  = 'pc-ops::vpm::keydates::body::v1';
 
     /* Safety net: walk every editable area on the page and flush its
-       current content to localStorage. Runs on tab-switch, blur, and
-       page-unload so nothing in-flight gets lost on the next render.
-       (The normal input handler still does the per-keystroke save —
-       this just guarantees the very last edit before navigation.) */
+       current content to localStorage before the page goes away.
+
+       Every editable here already saves on its own `input` event, so this
+       is pure redundancy — which means it must never be able to *destroy*
+       anything. Three rules keep it honest:
+
+         1. Bail whenever the DOM is known to be stale (a reload is in
+            flight, or sync has landed a remote change we haven't
+            repainted yet). Serialising a stale DOM here is exactly how
+            an edit made on another device used to get wiped.
+         2. Never delete a key because an element reads empty. An element
+            can be empty simply because it rendered before its data
+            arrived. Clearing a field for real is handled by the `input`
+            handlers, which know the emptiness was deliberate.
+         3. Skip the pinned clone. It shares `data-key` values with the
+            source week, so whichever came last in document order used to
+            win — and the clone goes stale the moment you type in the
+            calendar accordion. Its own input handler already mirrors
+            back to the source. */
     function flushAllEditables() {
-      // Skip when our own sync code triggered the reload — the DOM hasn't
-      // re-rendered with the synced data yet, so reading it would overwrite
-      // localStorage with empty defaults and break sync on next load.
       if (window.__plannerReloadingForSync) return;
+      if (window.__planner && window.__planner.unpaintedRemote) return;
       try {
-        // Day-column freeform text (both source week + pinned clone)
+        // Day-column freeform text (source week only — not the clone)
         const freeCur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
         document.querySelectorAll('.cwg-col-free[data-key]').forEach((el) => {
-          const key = el.dataset.key;
+          if (el.closest('.is-pinned-clone')) return;
           const html = el.innerHTML;
           const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
-          if (!stripped) delete freeCur[key]; else freeCur[key] = html;
+          if (!stripped) return;
+          freeCur[el.dataset.key] = html;
         });
         localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(freeCur));
 
         // Inline week notes
         const inlineCur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
         document.querySelectorAll('.cal-week-inline-note[data-week-key]').forEach((el) => {
-          const wkKey = el.dataset.weekKey;
+          if (el.closest('.is-pinned-clone')) return;
           const text = el.textContent.trim();
-          if (!text) delete inlineCur[wkKey]; else inlineCur[wkKey] = text;
+          if (!text) return;
+          inlineCur[el.dataset.weekKey] = text;
         });
         localStorage.setItem(STORE_KEY + '::weekInline', JSON.stringify(inlineCur));
 
         // Key dates body / title
         const kdBody = document.querySelector('.key-dates-body');
-        if (kdBody) localStorage.setItem(KD_BODY_KEY, kdBody.innerHTML);
+        if (kdBody && kdBody.innerHTML.trim()) localStorage.setItem(KD_BODY_KEY, kdBody.innerHTML);
         const kdTitle = document.querySelector('.key-dates-title');
-        if (kdTitle) localStorage.setItem(KD_TITLE_KEY, kdTitle.textContent.trim());
+        if (kdTitle && kdTitle.textContent.trim()) localStorage.setItem(KD_TITLE_KEY, kdTitle.textContent.trim());
       } catch (e) { /* ignore — best-effort flush */ }
     }
     window.addEventListener('beforeunload', flushAllEditables);
     window.addEventListener('pagehide', flushAllEditables);
-    window.addEventListener('blur', flushAllEditables);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flushAllEditables();
     });
+
+    /* The pinned current-week clone shares data-key values with the source
+       week in the calendar accordion. Clone→source was already mirrored;
+       without the reverse the clone goes stale the moment you type in the
+       accordion, and a later re-clone resurrects the old text over the new. */
+    function mirrorToPinned(sel, value, prop) {
+      const el = document.querySelector('#current-week-pinned ' + sel);
+      if (el && el !== document.activeElement && el[prop] !== value) el[prop] = value;
+    }
 
     function mountKeyDates() {
       const homePanel = document.getElementById('panel-home');
@@ -2429,6 +2452,7 @@
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[d.key]; else cur[d.key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+            mirrorToPinned('.cwg-col-free[data-key="' + d.key + '"]', html, 'innerHTML');
           });
           // Stop clicks on the column from bubbling up to the week-head toggle
           col.addEventListener('click', (e) => e.stopPropagation());
@@ -2482,6 +2506,8 @@
           const text = inlineNote.textContent.trim();
           if (!text) delete cur[inlineKey]; else cur[inlineKey] = text;
           localStorage.setItem(STORE_KEY + '::weekInline', JSON.stringify(cur));
+          mirrorToPinned('.cal-week-inline-note[data-week-key="' + inlineKey + '"]',
+                         inlineNote.textContent, 'textContent');
         });
         weeksEl.appendChild(wkSection);
       }

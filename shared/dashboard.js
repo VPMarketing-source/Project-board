@@ -50,6 +50,37 @@
   function saveStore(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
   }
+
+  /* Does this HTML render as nothing the user can see? Empty <div>s, <br>s,
+     styled-but-textless spans and zero-width spaces all count as empty —
+     that is exactly the residue left behind when content is destroyed. */
+  function isVisuallyEmpty(html) {
+    return !String(html == null ? '' : html)
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, '')
+      .replace(/[\s​ ]/g, '')
+      .length;
+  }
+
+  /* Guard for contenteditable widgets that persist on `input`.
+
+     Two ways a save can be destructive rather than intentional:
+       1. It fires before sync has fetched the server copy, so the element
+          is still showing whatever localStorage happened to hold.
+       2. It empties a field that had content, without the user ever having
+          been in that field — e.g. the synthetic `input` event fired when a
+          checkbox is toggled, which serialises the whole host element.
+
+     Real edits always have focus in the element, so requiring focus before
+     accepting an emptying write costs the user nothing. Fails open when
+     sync.js isn't present, so pages without it stay fully editable. */
+  function safeToPersist(el, nextHtml, prevHtml) {
+    const P = window.__planner;
+    if (P && typeof P.canPersist === 'function' && !P.canPersist()) return false;
+    if (isVisuallyEmpty(nextHtml) && !isVisuallyEmpty(prevHtml) &&
+        document.activeElement !== el) return false;
+    return true;
+  }
   function clearAll() {
     Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
   }
@@ -530,7 +561,12 @@
   if (pinnedEl) {
     pinnedEl.innerHTML = PINNED.html || '';
     pinnedEl.addEventListener('input', () => {
-      PINNED.html = pinnedEl.innerHTML;
+      const next = pinnedEl.innerHTML;
+      // Without this guard the Notes box is wiped by its own save: the page
+      // paints it from stale localStorage, then the first input event of any
+      // kind serialises that empty box over the good copy on the server.
+      if (!safeToPersist(pinnedEl, next, PINNED.html)) return;
+      PINNED.html = next;
       saveStore(KEYS.pinned, PINNED);
     });
   }

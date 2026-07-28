@@ -29,7 +29,13 @@
   const DEBOUNCE_MS   = 300;
   const SYNC_KEY_RE   = /^(pc-ops::|__keep::)/;
 
-  window.__planner = { CLIENT_ID, status: 'init', pending: 0 };
+  // `unpaintedRemote` is true whenever a remote change has landed in
+  // localStorage but the DOM has not been repainted from it yet. While it
+  // is set, page-level "flush the whole DOM to localStorage" helpers MUST
+  // bail out — otherwise they serialise the stale DOM straight over the
+  // change that just arrived and push it back up, silently destroying an
+  // edit made on another device.
+  window.__planner = { CLIENT_ID, status: 'init', pending: 0, unpaintedRemote: false };
 
   // ---- 1. Intercept localStorage.setItem to mirror to Supabase -------
   const origSetItem = Storage.prototype.setItem;
@@ -37,6 +43,9 @@
   const pendingUpserts = new Map();
   const recentlyWritten = new Map();
   let debounceTimer = null;
+  let repaintTimer = null;
+  let unpaintedRemote = false;
+  let repaintBlocked = false;
 
   Storage.prototype.setItem = function (key, value) {
     origSetItem.call(this, key, value);
@@ -58,6 +67,98 @@
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(flushUpserts, DEBOUNCE_MS);
   }
+
+  // ---- 1b. Repainting after a remote change --------------------------
+  // Every widget on these pages renders itself from localStorage once at
+  // boot, so writing a remote value into localStorage is not enough to
+  // make it visible — the page has to re-render. There is no central
+  // store to re-render from, so a reload is the only reliable repaint,
+  // which is what seed() already does on first load.
+
+  const EDITABLE_SEL = 'input,textarea,[contenteditable="true"]';
+
+  function userIsEditing() {
+    const a = document.activeElement;
+    if (a && a.matches && a.matches(EDITABLE_SEL)) return true;
+    // A collapsed caret still counts — the user may be mid-thought with
+    // the window merely unfocused (alt-tabbed to copy something).
+    const sel = window.getSelection && window.getSelection();
+    if (sel && sel.anchorNode) {
+      const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      if (node && node.closest && node.closest('[contenteditable="true"]')) return true;
+    }
+    return false;
+  }
+
+  // Safety valve. An auto-reload driven by remote state could in principle
+  // ping-pong (two devices each rewriting a key on boot would reload each
+  // other forever). Cap it: after RELOAD_LIMIT sync reloads in RELOAD_WINDOW
+  // we stop reloading and just tell the user to refresh. unpaintedRemote
+  // stays set either way, so the DOM flushers remain disarmed and nothing
+  // gets overwritten — the worst case is a stale view, never lost data.
+  const RELOAD_LIMIT  = 3;
+  const RELOAD_WINDOW = 60 * 1000;
+  const RELOAD_LOG    = '__planner_sync_reloads::' + CLIENT_ID;
+
+  function reloadBudgetLeft() {
+    try {
+      const now = Date.now();
+      const log = JSON.parse(sessionStorage.getItem(RELOAD_LOG) || '[]')
+        .filter((t) => now - t < RELOAD_WINDOW);
+      if (log.length >= RELOAD_LIMIT) return false;
+      log.push(now);
+      sessionStorage.setItem(RELOAD_LOG, JSON.stringify(log));
+      return true;
+    } catch (_) {
+      return true; // no sessionStorage — don't block the repaint
+    }
+  }
+
+  // Reload once the user is idle. Retries rather than giving up, so the
+  // repaint always lands eventually; until then unpaintedRemote stays set
+  // and the page-level DOM flushers stay disarmed.
+  function scheduleRepaint() {
+    if (repaintTimer) clearTimeout(repaintTimer);
+    repaintTimer = setTimeout(function attempt() {
+      if (userIsEditing()) {
+        repaintTimer = setTimeout(attempt, 2000);
+        return;
+      }
+      if (!reloadBudgetLeft()) {
+        repaintBlocked = true;
+        updateIndicator();
+        return;
+      }
+      window.__plannerReloadingForSync = true;
+      location.reload();
+    }, 1200);
+  }
+
+  function markUnpainted() {
+    unpaintedRemote = true;
+    window.__planner.unpaintedRemote = true;
+    updateIndicator();
+    scheduleRepaint();
+  }
+
+  // Widgets paint themselves from localStorage the moment the DOM is ready,
+  // which is BEFORE seed() has fetched the authoritative server copy. Any
+  // write derived from the DOM in that window pushes possibly-stale content
+  // over good server data. `seeded` marks the point where localStorage can
+  // be trusted; widgets gate their saves on __planner.canPersist().
+  //
+  // It is deliberately fail-open: it flips true even when sync is offline or
+  // Supabase never loads, so an unreachable network makes the board
+  // local-only rather than read-only. Pages that don't load sync.js at all
+  // have no window.__planner, and their own guards must default to allowing
+  // writes for the same reason.
+  function markSeeded() {
+    window.__planner.seeded = true;
+  }
+  window.__planner.seeded = false;
+  window.__planner.canPersist = function () {
+    return window.__planner.seeded === true && unpaintedRemote === false;
+  };
 
   // ---- 2. Load Supabase CDN dynamically ------------------------------
   let client = null;
@@ -152,22 +253,23 @@
         origSetItem.call(window.localStorage, MIGRATED_KEY, '1');
       }
 
-      // Reload whenever remote differs from local so every widget repaints
-      // from the synced state. Skip if the user is actively typing. Flag
-      // the reload so per-page beforeunload flushers don't overwrite the
-      // freshly-seeded localStorage with empty values from a not-yet-
-      // rendered DOM.
-      if (anyChanged &&
-          !document.activeElement?.matches('input,textarea,[contenteditable="true"]')) {
-        window.__plannerReloadingForSync = true;
-        location.reload();
-        return;
-      }
-
       window.__planner.status = 'synced';
+      markSeeded();
+
+      // Remote differed from local, so every widget is now showing stale
+      // content. Hand off to markUnpainted rather than reloading inline:
+      // it disarms the page-level DOM flushers immediately and waits for
+      // the user to stop typing before reloading, instead of silently
+      // skipping the repaint (and leaving the DOM stale) whenever the
+      // caret happened to be in an editable. canPersist() stays false the
+      // whole time via unpaintedRemote, so nothing can be written back
+      // from the stale DOM even if the reload is deferred or capped.
+      if (anyChanged) { markUnpainted(); return; }
+
       updateIndicator();
     } catch (e) {
       window.__planner.status = 'offline';
+      markSeeded();
       updateIndicator();
     }
   }
@@ -188,6 +290,7 @@
               if (window.localStorage.getItem(row.key) != null) {
                 origRemoveItem.call(window.localStorage, row.key);
                 try { window.dispatchEvent(new StorageEvent('storage', { key: row.key, newValue: null })); } catch (_) {}
+                markUnpainted();
               }
               return;
             }
@@ -202,6 +305,7 @@
               try {
                 window.dispatchEvent(new StorageEvent('storage', { key: row.key, newValue: remoteStr, oldValue: localStr }));
               } catch (_) {}
+              markUnpainted();
             }
           })
       .subscribe();
@@ -222,6 +326,14 @@
     const el = ensureIndicator();
     const s = window.__planner.status;
     const p = window.__planner.pending;
+    if (unpaintedRemote) {
+      el.textContent = repaintBlocked
+        ? 'Updated elsewhere — refresh to see it'
+        : 'Updated elsewhere — refreshing…';
+      el.style.color = repaintBlocked ? '#b45309' : '#2960ff';
+      el.style.opacity = '1';
+      return;
+    }
     if (s === 'syncing' || p > 0) {
       el.textContent = 'Syncing' + (p > 0 ? ' · ' + p : '') + '…';
       el.style.color = '#2960ff';
@@ -249,6 +361,7 @@
     await loadSupabase();
     if (!window.supabase || !window.supabase.createClient) {
       window.__planner.status = 'offline';
+      markSeeded();
       updateIndicator();
       return;
     }
@@ -263,8 +376,67 @@
     setInterval(flushUpserts, 5000);
   })();
 
-  // Final flush on unload to catch any in-flight edits.
-  window.addEventListener('beforeunload', () => {
-    if (pendingUpserts.size > 0 && client) flushUpserts();
+  // ---- 8. Final flush on unload --------------------------------------
+  // The normal flushUpserts() path is async and issues a plain fetch, which
+  // the browser cancels as the page goes away — so the last edits before a
+  // tab close were being dropped, and the next load then pulled the older
+  // remote copy back over them. keepalive lets the request outlive the
+  // document. It caps the body at 64KB, so fall back to the ordinary path
+  // for payloads above that.
+  const KEEPALIVE_MAX = 60 * 1024;
+
+  function flushOnUnload() {
+    if (pendingUpserts.size === 0) return;
+    const rows = [];
+    const deletes = [];
+    pendingUpserts.forEach((val, key) => {
+      if (val === null) deletes.push(key);
+      else rows.push({ client_id: CLIENT_ID, key, value: { raw: val }, updated_at: new Date().toISOString() });
+    });
+
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates',
+    };
+
+    // Only drop a key from the queue once the write is confirmed. If the
+    // page survives (a tab switch rather than a close) a failed request
+    // therefore stays queued for the 5s retry instead of vanishing. Upserts
+    // are idempotent, so an overlapping retry is harmless.
+    if (rows.length) {
+      const body = JSON.stringify(rows);
+      if (body.length <= KEEPALIVE_MAX) {
+        try {
+          fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?on_conflict=client_id,key',
+                { method: 'POST', headers, body, keepalive: true })
+            .then((r) => { if (r.ok) rows.forEach((row) => pendingUpserts.delete(row.key)); })
+            .catch(() => {});
+        } catch (_) { if (client) flushUpserts(); }
+      } else if (client) {
+        // Too big for keepalive's 64KB cap — best-effort async flush.
+        flushUpserts();
+      }
+    }
+
+    if (deletes.length) {
+      const list = '(' + deletes.map((k) => '"' + k.replace(/"/g, '\\"') + '"').join(',') + ')';
+      try {
+        fetch(SUPABASE_URL + '/rest/v1/' + TABLE +
+              '?client_id=eq.' + encodeURIComponent(CLIENT_ID) +
+              '&key=in.' + encodeURIComponent(list),
+              { method: 'DELETE', headers, keepalive: true })
+          .then((r) => { if (r.ok) deletes.forEach((k) => pendingUpserts.delete(k)); })
+          .catch(() => {});
+      } catch (_) {}
+    }
+  }
+
+  window.addEventListener('pagehide', flushOnUnload);
+  document.addEventListener('visibilitychange', () => {
+    // Reliable on mobile, where beforeunload/pagehide often never fire.
+    if (document.visibilityState === 'hidden') flushOnUnload();
   });
+  window.addEventListener('beforeunload', flushOnUnload);
 })();
