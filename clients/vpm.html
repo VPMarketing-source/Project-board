@@ -916,6 +916,16 @@
   .cal-month.is-open .cal-month-body { display: block; }
   .cal-month-body .cal-weeks { gap: 10px; }
 
+  /* Momentary confirmation that an edit reached storage. Deliberately
+     quiet — a soft green edge on the field you just typed in. */
+  .cwg-col-free.is-saved,
+  .cal-week-inline-note.is-saved,
+  .key-dates-body.is-saved,
+  .key-dates-title.is-saved {
+    box-shadow: inset 2px 0 0 #16a34a;
+    transition: box-shadow 180ms ease;
+  }
+
   /* "Calendar" wrapper toggle */
   .cal-wrap-head {
     display: inline-flex;
@@ -1921,6 +1931,39 @@
       if (document.visibilityState === 'hidden') flushAllEditables();
     });
 
+    /* ── Write safety for every editable in the calendar ────────────────
+       Each of these handlers used to do `if (!stripped) delete cur[key]`,
+       so a cell that merely *rendered* empty — because the page painted
+       before sync landed, or a re-render raced an edit — deleted that day
+       on the next stray input event and pushed the deletion everywhere.
+       That is how a planned week vanishes.
+
+       Two rules, matching the Notes box:
+         - nothing persists until sync has the server copy (canPersist)
+         - erasure requires focus in the field; a real edit always has it,
+           a stale render or a synthetic event never does.
+       Adding or changing content is untouched. Fails open without sync.js. */
+    function isVisuallyEmpty(html) {
+      const s = String(html == null ? '' : html);
+      if (/<(input|img)\b/i.test(s)) return false;   // checkboxes are content
+      return !s.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, '').replace(/[\s​ ]/g, '').length;
+    }
+    function safeToPersist(el, nextHtml) {
+      const P = window.__planner;
+      if (P && typeof P.canPersist === 'function' && !P.canPersist()) return false;
+      if (isVisuallyEmpty(nextHtml) && document.activeElement !== el) return false;
+      return true;
+    }
+
+    /* Brief "Saved" tick on the cell being edited, so persistence is
+       visible rather than something you have to take on trust. */
+    function flashSaved(el) {
+      if (!el) return;
+      clearTimeout(el.__savedTimer);
+      el.classList.add('is-saved');
+      el.__savedTimer = setTimeout(() => el.classList.remove('is-saved'), 900);
+    }
+
     /* The pinned current-week clone shares data-key values with the source
        week in the calendar accordion. Clone→source was already mirrored;
        without the reverse the clone goes stale the moment you type in the
@@ -1944,10 +1987,14 @@
       const title = aside.querySelector('.key-dates-title');
       body.innerHTML = localStorage.getItem(KD_BODY_KEY) || '';
       title.addEventListener('input', () => {
+        if (!safeToPersist(title, title.textContent)) return;
         localStorage.setItem(KD_TITLE_KEY, title.textContent.trim());
+        flashSaved(title);
       });
       body.addEventListener('input', () => {
+        if (!safeToPersist(body, body.innerHTML)) return;
         localStorage.setItem(KD_BODY_KEY, body.innerHTML);
+        flashSaved(body);
       });
       homePanel.appendChild(aside);
     }
@@ -2149,11 +2196,13 @@
           // Reseed in case the source DOM was stale.
           free.innerHTML = FREE[key] || '';
           free.addEventListener('input', () => {
-            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
             const html = free.innerHTML;
+            if (!safeToPersist(free, html)) return;
+            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[key]; else cur[key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+            flashSaved(free);
             // Mirror into the source DOM so a later re-clone shows the
             // latest content even before a full re-render.
             const srcCell = src.querySelector('.cwg-col-free[data-key="' + key + '"]');
@@ -2166,10 +2215,12 @@
           note.textContent = inlineAll[wkKey] || '';
           note.addEventListener('click', (e) => e.stopPropagation());
           note.addEventListener('input', () => {
-            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
             const text = note.textContent.trim();
+            if (!safeToPersist(note, note.textContent)) return;
+            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
             if (!text) delete cur[wkKey]; else cur[wkKey] = text;
             localStorage.setItem(STORE_KEY + '::weekInline', JSON.stringify(cur));
+            flashSaved(note);
             const srcNote = src.querySelector('.cal-week-inline-note[data-week-key="' + wkKey + '"]');
             if (srcNote && srcNote !== note) srcNote.textContent = note.textContent;
           });
@@ -2219,12 +2270,14 @@
         const free  = col.querySelector('.cwg-col-free');
         free.innerHTML = FREE[key] || '';
         free.addEventListener('input', () => {
-          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
           const html = free.innerHTML;
+          if (!safeToPersist(free, html)) return;
+          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
           // Strip empty <br>-only content so placeholder shows again.
           const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
           if (!stripped) delete cur[key]; else cur[key] = html;
           localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
+          flashSaved(free);
         });
         const events = (state.events[key] || []).slice().sort((a, b) => {
           const at = a.start || 'zz';
@@ -2403,12 +2456,14 @@
           const free = col.querySelector('.cwg-col-free');
           free.innerHTML = FREE[d.key] || '';
           free.addEventListener('input', () => {
-            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
             const html = free.innerHTML;
+            if (!safeToPersist(free, html)) return;
+            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
             const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
             if (!stripped) delete cur[d.key]; else cur[d.key] = html;
             localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
             mirrorToPinned('.cwg-col-free[data-key="' + d.key + '"]', html, 'innerHTML');
+            flashSaved(free);
           });
           // Stop clicks on the column from bubbling up to the week-head toggle
           col.addEventListener('click', (e) => e.stopPropagation());
@@ -2458,10 +2513,12 @@
         if (inlineAll[inlineKey]) inlineNote.textContent = inlineAll[inlineKey];
         inlineNote.addEventListener('click', (e) => e.stopPropagation());
         inlineNote.addEventListener('input', () => {
-          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
           const text = inlineNote.textContent.trim();
+          if (!safeToPersist(inlineNote, inlineNote.textContent)) return;
+          const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
           if (!text) delete cur[inlineKey]; else cur[inlineKey] = text;
           localStorage.setItem(STORE_KEY + '::weekInline', JSON.stringify(cur));
+          flashSaved(inlineNote);
           mirrorToPinned('.cal-week-inline-note[data-week-key="' + inlineKey + '"]',
                          inlineNote.textContent, 'textContent');
         });
