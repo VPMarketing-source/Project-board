@@ -912,23 +912,34 @@
    data. Two rules:
 
      1. Persist nothing until that first fetch has settled (hydrated).
-     2. Never let a field that had content be emptied by something other
-        than the user typing in it. A real edit always has focus; the
-        synthetic `input` event fired by a checkbox toggle does not, and it
-        serialises the entire host element.
+     2. An emptying write is only ever accepted while the user has focus in
+        the field. Adding content is always fine; it is only *erasure* that
+        needs proof of intent.
+
+   Rule 2 used to compare against the previously stored value, and only
+   blocked emptying a field that already looked non-empty. That failed in
+   exactly the case that matters: when the server pull was skipped (the box
+   had focus) or failed (offline), localStorage still held the stale empty
+   value, so "previous" was empty too, the rule never engaged, and the empty
+   box was pushed over good server data. Comparing against local state can
+   never detect "the server has content this page never loaded", so the
+   check is now unconditional and needs no previous value at all.
    ========================================================================= */
 function isVisuallyEmptyHtml(html) {
-  return !String(html == null ? '' : html)
+  const s = String(html == null ? '' : html);
+  // Checkboxes and images are content even though they contribute no text —
+  // a note holding only a todo list must not read as empty.
+  if (/<(input|img)\b/i.test(s)) return false;
+  return !s
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, '')
     .replace(/[\s​ ]/g, '')
     .length;
 }
 function makeWriteGuard(isHydrated) {
-  return function safeToPersist(el, nextHtml, prevHtml) {
+  return function safeToPersist(el, nextHtml) {
     if (!isHydrated()) return false;
-    if (isVisuallyEmptyHtml(nextHtml) && !isVisuallyEmptyHtml(prevHtml) &&
-        document.activeElement !== el) return false;
+    if (isVisuallyEmptyHtml(nextHtml) && document.activeElement !== el) return false;
     return true;
   };
 }
@@ -991,7 +1002,7 @@ function makeWriteGuard(isHydrated) {
     // empty from stale localStorage, then any input event — including the
     // synthetic one a checkbox toggle fires — pushes that emptiness to the
     // server. Refuse it unless the user is genuinely typing in the box.
-    if (!safeToPersist(body, html, readLocalHtml())) return;
+    if (!safeToPersist(body, html)) return;
     writeLocal(html);
     pushToSupabase(JSON.stringify({ html: html }));
   });

@@ -53,9 +53,13 @@
 
   /* Does this HTML render as nothing the user can see? Empty <div>s, <br>s,
      styled-but-textless spans and zero-width spaces all count as empty —
-     that is exactly the residue left behind when content is destroyed. */
+     that is exactly the residue left behind when content is destroyed.
+     Checkboxes and images count as content despite carrying no text, so a
+     note holding only a todo list is never mistaken for an empty one. */
   function isVisuallyEmpty(html) {
-    return !String(html == null ? '' : html)
+    const s = String(html == null ? '' : html);
+    if (/<(input|img)/i.test(s)) return false;
+    return !s
       .replace(/<[^>]*>/g, '')
       .replace(/&nbsp;/g, '')
       .replace(/[\s​ ]/g, '')
@@ -67,18 +71,21 @@
      Two ways a save can be destructive rather than intentional:
        1. It fires before sync has fetched the server copy, so the element
           is still showing whatever localStorage happened to hold.
-       2. It empties a field that had content, without the user ever having
-          been in that field — e.g. the synthetic `input` event fired when a
-          checkbox is toggled, which serialises the whole host element.
+       2. It empties the field without the user ever having been in it —
+          e.g. the synthetic `input` event fired when a checkbox is toggled,
+          which serialises the whole host element.
 
      Real edits always have focus in the element, so requiring focus before
-     accepting an emptying write costs the user nothing. Fails open when
-     sync.js isn't present, so pages without it stay fully editable. */
-  function safeToPersist(el, nextHtml, prevHtml) {
+     accepting an *erasing* write costs the user nothing while making a
+     stale, empty DOM unable to destroy anything. Deliberately no comparison
+     against the previously stored value: when the page is stale that stored
+     value is itself empty, so it can never reveal that the server holds
+     content this page never loaded. Fails open when sync.js isn't present,
+     so pages without it stay fully editable. */
+  function safeToPersist(el, nextHtml) {
     const P = window.__planner;
     if (P && typeof P.canPersist === 'function' && !P.canPersist()) return false;
-    if (isVisuallyEmpty(nextHtml) && !isVisuallyEmpty(prevHtml) &&
-        document.activeElement !== el) return false;
+    if (isVisuallyEmpty(nextHtml) && document.activeElement !== el) return false;
     return true;
   }
   function clearAll() {
@@ -565,7 +572,7 @@
       // Without this guard the Notes box is wiped by its own save: the page
       // paints it from stale localStorage, then the first input event of any
       // kind serialises that empty box over the good copy on the server.
-      if (!safeToPersist(pinnedEl, next, PINNED.html)) return;
+      if (!safeToPersist(pinnedEl, next)) return;
       PINNED.html = next;
       saveStore(KEYS.pinned, PINNED);
     });
