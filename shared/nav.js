@@ -13,8 +13,26 @@
    padding-top to make room (see .pc-nav-spacer below).
    ========================================================================= */
 (function bootNav() {
-  const registry = window.CLIENTS_REGISTRY || [];
+  // Built-ins plus any clients added from the home page. Painted from the
+  // local cache first so the bar appears instantly, then refreshed.
+  let registry = window.PC_REGISTRY ? window.PC_REGISTRY.cached() : (window.CLIENTS_REGISTRY || []);
   const current  = (window.CLIENT_DATA && window.CLIENT_DATA.id) || null;
+
+  function menuItemsHtml() {
+    return registry.map((c) => {
+      if (c.divider) {
+        return '<li class="pc-nav-switch-divider" role="separator"></li>';
+      }
+      return `
+        <li role="none">
+          <a role="menuitem" href="../${escape(c.href)}" ${c.id === current ? 'aria-current="page"' : ''}>
+            <span class="pc-nav-switch-initials">${escape(c.initials || '')}</span>
+            <span class="pc-nav-switch-name">${escape(c.name || c.id)}</span>
+          </a>
+        </li>
+      `;
+    }).join('');
+  }
 
   function render() {
     if (document.getElementById('pc-nav')) return;
@@ -36,19 +54,7 @@
           </svg>
         </button>
         <ul class="pc-nav-switch-menu" role="menu" hidden>
-          ${registry.map((c) => {
-            if (c.divider) {
-              return '<li class="pc-nav-switch-divider" role="separator"></li>';
-            }
-            return `
-              <li role="none">
-                <a role="menuitem" href="../${escape(c.href)}" ${c.id === current ? 'aria-current="page"' : ''}>
-                  <span class="pc-nav-switch-initials">${escape(c.initials || '')}</span>
-                  <span class="pc-nav-switch-name">${escape(c.name || c.id)}</span>
-                </a>
-              </li>
-            `;
-          }).join('')}
+          ${menuItemsHtml()}
         </ul>
       </div>
     `;
@@ -191,6 +197,18 @@
     injectStyles();
     render();
     wireAvatar();
+
+    // Refresh the switcher once the authoritative registry lands, so
+    // clients added on another device appear without a hard reload.
+    if (window.PC_REGISTRY) {
+      window.PC_REGISTRY.load().then((merged) => {
+        registry = merged;
+        const menu = document.querySelector('#pc-nav .pc-nav-switch-menu');
+        if (menu) menu.innerHTML = menuItemsHtml();
+        const label = document.querySelector('#pc-nav .pc-nav-switch-label');
+        if (label) label.textContent = currentName();
+      }).catch(() => {});
+    }
     // The shared dashboard.js sometimes re-renders the header; rewire if so.
     new MutationObserver(wireAvatar).observe(document.body, { childList: true, subtree: true });
   }

@@ -107,7 +107,134 @@
     color: var(--ink-mute);
     margin-left: auto;
   }
-  .section-fold:not(.is-open) > #tile-groups { display: none; }
+  .section-fold:not(.is-open) > #tile-groups,
+  .section-fold:not(.is-open) > .add-client-btn { display: none; }
+
+  /* Add client — button + dialog */
+  .add-client-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 14px;
+    padding: 9px 16px;
+    background: var(--surface);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    font: 600 13px/1 inherit;
+    color: var(--ink-mute);
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .add-client-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    border-style: solid;
+  }
+  .add-client-btn span { font-size: 16px; line-height: 1; }
+
+  /* The × on a custom tile. The tile itself is a link, so this sits above
+     it and cancels the navigation when clicked. */
+  .tile { position: relative; }
+  .tile-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--ink-mute);
+    cursor: pointer;
+  }
+  .tile:hover .tile-remove { display: inline-flex; }
+  .tile-remove:hover { color: #c0392b; border-color: #c0392b; }
+
+  .ac-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(17, 19, 26, 0.35);
+    backdrop-filter: blur(2px);
+  }
+  .ac-overlay[hidden] { display: none; }
+  .ac-card {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 22px 24px 20px;
+    box-shadow: 0 20px 60px rgba(17, 19, 26, 0.22);
+  }
+  .ac-title { margin: 0 0 16px; font-size: 17px; font-weight: 700; color: var(--ink); }
+  .ac-field { display: block; margin-bottom: 14px; }
+  .ac-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink-mute);
+  }
+  .ac-label em { font-style: normal; opacity: 0.65; letter-spacing: 0.04em; }
+  .ac-field input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: 400 14px/1.4 inherit;
+    color: var(--ink);
+    background: #fff;
+  }
+  .ac-field input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(168, 107, 20, 0.12);
+  }
+  .ac-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ac-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+    padding: 0;
+  }
+  .ac-swatch.is-selected { border-color: #fff; box-shadow: 0 0 0 2px var(--ink); }
+  .ac-slug { margin: 4px 0 0; font-size: 12px; color: var(--ink-mute); }
+  .ac-slug code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; }
+  .ac-error {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: #c0392b;
+  }
+  .ac-error[hidden] { display: none; }
+  .ac-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .ac-btn {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    font: 600 13px/1 inherit;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .ac-btn:hover { background: rgba(17, 19, 26, 0.03); }
+  .ac-btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ac-btn.is-primary:hover { filter: brightness(1.06); }
+  .ac-btn[disabled] { opacity: 0.55; cursor: default; }
 
   .top-stamp {
     text-align: center;
@@ -453,7 +580,37 @@
     </button>
 
     <div id="tile-groups"></div>
+
+    <button type="button" class="add-client-btn" id="add-client-btn">
+      <span aria-hidden="true">+</span> Add client
+    </button>
   </section>
+
+  <div class="ac-overlay" id="add-client-modal" hidden>
+    <div class="ac-card" role="dialog" aria-modal="true" aria-labelledby="ac-title">
+      <h2 class="ac-title" id="ac-title">Add a client space</h2>
+      <form id="add-client-form">
+        <label class="ac-field">
+          <span class="ac-label">Name</span>
+          <input type="text" id="ac-name" required autocomplete="off" placeholder="Craftluxe" />
+        </label>
+        <label class="ac-field">
+          <span class="ac-label">Description <em>optional</em></span>
+          <input type="text" id="ac-sub" autocomplete="off" placeholder="Homewares · Email marketing" />
+        </label>
+        <div class="ac-field">
+          <span class="ac-label">Colour</span>
+          <div class="ac-swatches" id="ac-swatches"></div>
+        </div>
+        <p class="ac-slug">Address: <code id="ac-slug-preview">—</code></p>
+        <p class="ac-error" id="ac-error" hidden></p>
+        <div class="ac-actions">
+          <button type="button" class="ac-btn" id="ac-cancel">Cancel</button>
+          <button type="submit" class="ac-btn is-primary" id="ac-save">Create space</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
 </div>
 
@@ -465,11 +622,20 @@
   const groupsEl = document.getElementById('tile-groups');
   const pinnedEl = document.getElementById('pinned-grid');
   const countEl = document.getElementById('clients-count');
-  const registry = window.CLIENTS_REGISTRY || [];
   const lastTouchedByClient = {};
-  const pinnedEntries = registry.filter((e) => !e.divider && e.pinned);
-  const mainRegistry  = registry.filter((e) => !e.pinned);
-  const clientEntries = mainRegistry.filter((e) => !e.divider);
+
+  // Built-ins from clients.js plus any clients added with the button, which
+  // live in Supabase. Starts from the local cache so the list paints without
+  // waiting on the network, then refreshes once the real list arrives.
+  let registry = window.PC_REGISTRY.cached();
+  let pinnedEntries = [], mainRegistry = [], clientEntries = [];
+
+  function splitRegistry() {
+    pinnedEntries = registry.filter((e) => !e.divider && e.pinned);
+    mainRegistry  = registry.filter((e) => !e.pinned);
+    clientEntries = mainRegistry.filter((e) => !e.divider);
+  }
+  splitRegistry();
 
   function escape(s) {
     return String(s == null ? '' : s)
@@ -516,6 +682,8 @@
           <span class="tile-meta-dot ${freshness(last)}"></span>
           <span>${escape(timeAgo(last))}</span>
         </span>
+        ${c.custom ? `<button type="button" class="tile-remove" data-remove="${escape(c.id)}"
+            title="Remove this client space" aria-label="Remove ${escape(c.name || c.id)}">×</button>` : ''}
       </a>
     `;
   }
@@ -570,6 +738,123 @@
   }
 
   renderTiles();
+
+  // Cache painted the list already; refresh from Supabase so clients added
+  // on another device show up here too.
+  window.PC_REGISTRY.load().then((merged) => {
+    registry = merged;
+    splitRegistry();
+    renderTiles();
+  });
+
+  /* ── Add / remove client spaces ─────────────────────────────────────
+     Clients added here are stored in Supabase by PC_REGISTRY and render
+     through clients/space.html?id=<slug>, since a static site can't write
+     a new file per client. */
+  (function wireAddClient() {
+    const ACCENTS = ['#a86b14','#2960ff','#1c6e72','#b8a07a','#6b4a2a',
+                     '#2a7080','#1c3458','#8a4a7a','#c9941a','#7a2a3a'];
+    const btn      = document.getElementById('add-client-btn');
+    const modal    = document.getElementById('add-client-modal');
+    const form     = document.getElementById('add-client-form');
+    const nameEl   = document.getElementById('ac-name');
+    const subEl    = document.getElementById('ac-sub');
+    const slugEl   = document.getElementById('ac-slug-preview');
+    const errEl    = document.getElementById('ac-error');
+    const saveEl   = document.getElementById('ac-save');
+    const swatches = document.getElementById('ac-swatches');
+    if (!btn || !modal) return;
+
+    let accent = ACCENTS[0];
+
+    swatches.innerHTML = ACCENTS.map((c, i) =>
+      `<button type="button" class="ac-swatch${i === 0 ? ' is-selected' : ''}"
+               data-accent="${c}" style="background:${c}" aria-label="Colour ${i + 1}"></button>`
+    ).join('');
+    swatches.addEventListener('click', (e) => {
+      const sw = e.target.closest('.ac-swatch');
+      if (!sw) return;
+      accent = sw.dataset.accent;
+      swatches.querySelectorAll('.ac-swatch').forEach((s) => s.classList.toggle('is-selected', s === sw));
+    });
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.hidden = !msg;
+    }
+    function open() {
+      form.reset();
+      accent = ACCENTS[0];
+      swatches.querySelectorAll('.ac-swatch').forEach((s, i) => s.classList.toggle('is-selected', i === 0));
+      slugEl.textContent = '—';
+      showError('');
+      saveEl.disabled = false;
+      saveEl.textContent = 'Create space';
+      modal.hidden = false;
+      nameEl.focus();
+    }
+    function close() { modal.hidden = true; }
+
+    nameEl.addEventListener('input', () => {
+      const slug = window.PC_REGISTRY.slugify(nameEl.value);
+      slugEl.textContent = slug ? 'clients/space.html?id=' + slug : '—';
+    });
+
+    btn.addEventListener('click', open);
+    document.getElementById('ac-cancel').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = nameEl.value.trim();
+      if (!name) { showError('Give the client a name.'); return; }
+      showError('');
+      saveEl.disabled = true;
+      saveEl.textContent = 'Creating…';
+      try {
+        const entry = await window.PC_REGISTRY.add({ name, sub: subEl.value, accent });
+        registry = await window.PC_REGISTRY.load();
+        splitRegistry();
+        renderTiles();
+        close();
+        // Open the fold so the new client is visible rather than hidden.
+        const fold = document.getElementById('clients-fold');
+        if (fold && !fold.classList.contains('is-open')) {
+          document.getElementById('clients-toggle').click();
+        }
+        window.location.href = entry.href;
+      } catch (err) {
+        saveEl.disabled = false;
+        saveEl.textContent = 'Create space';
+        showError('Could not save — check your connection and try again.');
+      }
+    });
+
+    // Removing a custom tile: registry entry only, never the client's data.
+    groupsEl.addEventListener('click', async (e) => {
+      const rm = e.target.closest('.tile-remove');
+      if (!rm) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const id = rm.dataset.remove;
+      const entry = registry.find((c) => !c.divider && c.id === id);
+      const label = entry ? (entry.name || id) : id;
+      if (!window.confirm(
+        'Remove “' + label + '” from the client list?\n\n' +
+        'Its notes and tables are kept, so adding it back with the same ' +
+        'name restores everything.'
+      )) return;
+      try {
+        await window.PC_REGISTRY.remove(id);
+        registry = await window.PC_REGISTRY.load();
+        splitRegistry();
+        renderTiles();
+      } catch (_) {
+        window.alert('Could not remove that client — check your connection and try again.');
+      }
+    });
+  })();
 
   /* ── Clients fold ───────────────────────────────────────────────────
      Collapsed by default so the home page opens on Notes rather than a

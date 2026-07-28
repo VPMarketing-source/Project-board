@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Client space — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="../shared/dashboard.css" />
+<script src="../shared/clients.js"></script>
+<script>
+  /* =====================================================================
+     Generic client space — clients/space.html?id=<slug>
+
+     Clients created with the home page's "+ Add client" button have no
+     file of their own (a static site can't write one), so they all render
+     through this page. The slug in the query string picks which client,
+     and CLIENT_DATA is assembled from the registry entry.
+
+     The slug becomes CLIENT_DATA.id, which scopes both localStorage and
+     Supabase planner_state.client_id — exactly as it would for a client
+     with a hand-written page. That means a space created here can later be
+     "promoted" to its own clients/<slug>.html: copy _template.html, reuse
+     the same id, and all of its data comes across untouched.
+
+     dashboard.js and sync.js both read window.CLIENT_DATA at load time, so
+     they are injected below only once the registry has resolved the slug.
+     ===================================================================== */
+  (function bootSpace() {
+    const params = new URLSearchParams(location.search);
+    const id = (params.get('id') || '').trim();
+
+    function fail(message, detail) {
+      // Called both synchronously from <head> (no id in the URL) and later,
+      // after an async registry lookup — by which point DOMContentLoaded has
+      // already fired and a listener would never run.
+      function paint() {
+        document.body.innerHTML =
+          '<div class="space-error">' +
+            '<h1>' + message + '</h1>' +
+            (detail ? '<p>' + detail + '</p>' : '') +
+            '<p><a href="../index.html">← Back to all clients</a></p>' +
+          '</div>';
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', paint);
+      } else {
+        paint();
+      }
+    }
+
+    if (!id) {
+      fail('No client specified', 'This page needs a client, e.g. space.html?id=example.');
+      return;
+    }
+
+    function boot(entry) {
+      document.title = entry.name + ' — Project Clarity';
+      window.CLIENT_DATA = {
+        id:       entry.id,
+        name:     entry.name,
+        initials: entry.initials,
+        sub:      entry.sub || '',
+        funnel:     { spend: 0, cpv: 0, cvr: 0, aov: 0, ret: 0, rov: 0 },
+        campaigns:  [],
+        retainer:   [],
+        tasks:      [],
+        notes:      [],
+        links: [
+          { label: 'Klaviyo account',         url: '' },
+          { label: 'ClickUp — campaign list', url: '' },
+          { label: 'Claude project',          url: '' },
+          { label: 'Brand guidelines',        url: '' },
+        ],
+      };
+      // Order matters: sync.js must see CLIENT_DATA, and dashboard.js must
+      // run after sync.js has installed its localStorage interception.
+      ['../shared/sync.js', '../shared/dashboard.js', '../shared/nav.js']
+        .reduce((chain, src) => chain.then(() => new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        })), Promise.resolve());
+    }
+
+    // Paint from the cached registry when we can — no network round-trip on
+    // a device that has seen this client before. Otherwise resolve remotely.
+    const cached = window.PC_REGISTRY.find(id);
+    if (cached) { boot(cached); return; }
+
+    window.PC_REGISTRY.load().then(() => {
+      const entry = window.PC_REGISTRY.find(id);
+      if (entry) boot(entry);
+      else fail('Client not found', 'No client space with the id “' + id + '”. It may have been removed.');
+    });
+  })();
+</script>
+<style>
+  .space-error {
+    max-width: 520px;
+    margin: 18vh auto;
+    padding: 0 24px;
+    font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #2b2f3a;
+    text-align: center;
+  }
+  .space-error h1 { font-size: 20px; margin: 0 0 10px; }
+  .space-error p  { font-size: 14px; color: #6c6f7a; margin: 6px 0; }
+  .space-error a  { color: #2960ff; }
+</style>
+</head>
+<body>
+</body>
+</html>
