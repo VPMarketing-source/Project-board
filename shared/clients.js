@@ -19,9 +19,9 @@
 window.CLIENTS_REGISTRY = [
   {
     id:       'vpm',
-    name:     'Personal Planner',
+    name:     'Personal',
     initials: 'MH',
-    sub:      'Planner',
+    sub:      '',
     href:     'clients/vpm.html',
     accent:   '#a86b14',
     pinned:   true,

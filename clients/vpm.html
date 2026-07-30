@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>VPM — Planner</title>
+<title>Personal — Project Clarity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
@@ -1376,13 +1376,15 @@
      ===================================================================== */
   window.CLIENT_DATA = {
     id:       'vpm',
-    name:     'Personal Planner',
+    name:     'Personal',
     initials: 'MH',
-    sub:      'Planner',
+    sub:      '',
 
     notesLabel: 'Notes',
 
-    clientAliases: ['Personal Planner', 'MH'],
+    // 'Personal Planner' stays listed: these aliases match incoming ClickUp
+    // task names, so dropping the old one would orphan existing matches.
+    clientAliases: ['Personal', 'Personal Planner', 'MH'],
 
     heroImage: '',
 

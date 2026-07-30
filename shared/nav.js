@@ -1,7 +1,7 @@
 /* =========================================================================
    Project Clarity — shared top nav
    Renders a small bar across the top of every client page:
-     ← Home          Personal Planner ▾
+     ← Home          Personal ▾
 
    Requirements (load order in HTML):
      <script src="../shared/clients.js"></script>   <!-- defines window.CLIENTS_REGISTRY -->
