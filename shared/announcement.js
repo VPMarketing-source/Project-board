@@ -88,13 +88,15 @@
     const s = document.createElement('style');
     s.id = 'pc-announce-styles';
     s.textContent = `
+      /* Centred banner. The toggle is positioned rather than laid out in
+         flow, so the announcement text centres on the bar itself and not
+         on whatever space is left over beside the controls. */
       .pc-announce {
         position: sticky;
         z-index: 8000;
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 10px 18px;
+        display: block;
+        padding: 18px 60px;
+        text-align: center;
         background: #fdf6dd;
         border-bottom: 1px solid #e8d9a0;
         box-shadow: 0 1px 0 rgba(17,19,26,0.03);
@@ -103,31 +105,38 @@
       }
       .pc-announce.is-saved { box-shadow: inset 3px 0 0 #16a34a; }
       .pc-announce-kicker {
-        flex: 0 0 auto;
-        margin-top: 2px;
+        display: block;
+        margin-bottom: 7px;
         font-size: 10px;
         font-weight: 700;
-        letter-spacing: 0.16em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
         color: #a86b14;
       }
       .pc-announce-body {
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: 14px;
-        line-height: 1.5;
+        max-width: 900px;
+        margin: 0 auto;
+        font-size: 21px;
+        font-weight: 600;
+        line-height: 1.4;
+        letter-spacing: -0.01em;
         color: #2b2f3a;
+        text-align: center;
         outline: none;
         overflow-wrap: anywhere;
       }
       .pc-announce-body:empty::before {
         content: attr(data-placeholder);
+        font-size: 16px;
+        font-weight: 400;
         color: #b2a377;
         font-style: italic;
       }
       .pc-announce-toggle {
-        flex: 0 0 auto;
-        width: 22px; height: 22px;
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        width: 24px; height: 24px;
         display: inline-flex; align-items: center; justify-content: center;
         padding: 0;
         background: transparent;
@@ -138,8 +147,14 @@
         line-height: 1;
       }
       .pc-announce-toggle:hover { color: #a86b14; border-color: #a86b14; }
-      .pc-announce.is-collapsed { padding: 4px 18px; }
+      .pc-announce.is-collapsed { padding: 7px 60px; }
+      .pc-announce.is-collapsed .pc-announce-kicker { margin-bottom: 0; }
       .pc-announce.is-collapsed .pc-announce-body { display: none; }
+      .pc-announce.is-collapsed .pc-announce-toggle { top: 4px; }
+      @media (max-width: 700px) {
+        .pc-announce { padding: 14px 46px; }
+        .pc-announce-body { font-size: 17px; }
+      }
       @media print { .pc-announce { display: none; } }
     `;
     document.head.appendChild(s);
