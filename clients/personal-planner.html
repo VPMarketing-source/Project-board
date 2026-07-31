@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personal Planner — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="../shared/dashboard.css" />
+<script src="../shared/clients.js"></script>
+<script>
+  /* =====================================================================
+     Personal Planner — its own pinned space, on the shared dashboard.
+
+     id is 'personal-planner', NOT 'vpm'. The id scopes both localStorage
+     and the Supabase planner_state.client_id column, so this space keeps
+     its own notes and tables and cannot read or overwrite anything in the
+     Personal space.
+     ===================================================================== */
+  window.CLIENT_DATA = {
+    id:       'personal-planner',
+    name:     'Personal Planner',
+    initials: 'PP',
+    sub:      '',
+
+    notesLabel: 'Notes',
+
+    clientAliases: ['Personal Planner'],
+
+    heroImage: '',
+
+    funnel: {
+      spend: 0,
+      cpv:   0,
+      cvr:   0,
+      aov:   0,
+      ret:   0,
+      rov:   0,
+    },
+
+    campaigns: [],
+    retainer:  [],
+    tasks:     [],
+    notes:     [],
+    links:     [],
+  };
+</script>
+<script src="../shared/sync.js"></script>
+</head>
+<body>
+<script src="../shared/dashboard.js"></script>
+<script src="../shared/nav.js"></script>
+</body>
+</html>

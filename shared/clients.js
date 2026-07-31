@@ -27,6 +27,15 @@ window.CLIENTS_REGISTRY = [
     pinned:   true,
   },
   {
+    id:       'personal-planner',
+    name:     'Personal Planner',
+    initials: 'PP',
+    sub:      '',
+    href:     'clients/personal-planner.html',
+    accent:   '#5b4bb0',
+    pinned:   true,
+  },
+  {
     id:       'vpmarketing',
     name:     'VP Marketing',
     initials: 'VP',
