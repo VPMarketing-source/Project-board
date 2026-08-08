@@ -1196,11 +1196,18 @@
   .fmt-toolbar .fmt-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 4px; align-self: center; }
 
   /* Full-width section background applied to a block line. Zero vertical
-     padding keeps consecutive coloured lines flush as one continuous band. */
+     margin removes the gaps that would otherwise show the white cell colour
+     between lines (e.g. the 4px margins on checkbox todos), so consecutive
+     coloured lines merge into one solid continuous band. A little vertical
+     padding gives breathing room that stays inside the colour. */
   [contenteditable="true"] .pc-section {
-    padding: 0 6px;
+    padding: 2px 6px;
     box-sizing: border-box;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
   }
+  /* Keep the checkbox aligned nicely now that the todo margin is gone. */
+  [contenteditable="true"] .pc-todo.pc-section { padding-top: 2px; padding-bottom: 2px; }
 
   /* Stuck-block remover: hover any pasted <table> inside an editable to
      get a small ✕ button that yanks the whole block in one click. */
