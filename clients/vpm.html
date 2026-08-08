@@ -1556,8 +1556,7 @@
         document.execCommand('styleWithCSS', false, true);
         document.execCommand('foreColor', false, btn.dataset.color);
       } else if (btn.dataset.action === 'clear-format') {
-        document.execCommand('styleWithCSS', false, true);
-        document.execCommand('removeFormat', false, null);
+        clearFormatting();
       } else if (btn.dataset.action === 'add-note') {
         wrapSelectionAsNote();
       } else if (btn.dataset.action === 'font-smaller') {
@@ -1576,6 +1575,54 @@
                   .closest('[contenteditable="true"]');
       if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
     });
+
+    // Remove ALL formatting from the selection: inline styles (bold, italic,
+    // underline, strikethrough, colour, size) via removeFormat, PLUS block
+    // formatting — checkbox todos and bullet/numbered lists are flattened
+    // back to plain lines. The text itself is always preserved. Annotations
+    // (notes) are left alone; they have their own Remove control.
+    function clearFormatting() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      let probe = range.commonAncestorContainer;
+      if (probe.nodeType === 3) probe = probe.parentElement;
+      const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
+      if (!ce) return;
+
+      // Capture block-level formatted elements the selection touches BEFORE we
+      // mutate anything (removeFormat can reshuffle inline nodes).
+      const blocks = [];
+      ce.querySelectorAll('.pc-todo, ul, ol').forEach((el) => {
+        try { if (range.intersectsNode(el)) blocks.push(el); } catch (_) {}
+      });
+
+      // 1. Inline styles.
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('removeFormat', false, null);
+
+      // 2. Flatten checkbox todos and lists to plain <div> lines.
+      blocks.forEach((el) => {
+        if (!el.isConnected) return;
+        if (el.classList && el.classList.contains('pc-todo')) {
+          const t = el.querySelector('.pc-todo-text');
+          const line = document.createElement('div');
+          line.innerHTML = t ? t.innerHTML : el.textContent;
+          el.replaceWith(line);
+        } else { // UL / OL
+          const frag = document.createDocumentFragment();
+          el.querySelectorAll(':scope > li').forEach((li) => {
+            const line = document.createElement('div');
+            line.innerHTML = li.innerHTML;
+            frag.appendChild(line);
+          });
+          if (frag.childNodes.length) el.replaceWith(frag);
+          else el.remove();
+        }
+      });
+
+      fireInputFor(ce);
+    }
 
     // ── Annotation popup ────────────────────────────────────────────
     const pop = document.createElement('div');
