@@ -1262,65 +1262,33 @@
 
   /* Annotated text — click to view/edit the attached note */
   .annotated {
-    background: rgba(254, 243, 199, 0.7);
-    border-bottom: 1.5px solid #f59e0b;
-    border-radius: 2px;
+    background: transparent;
+    border-bottom: 1px dashed rgba(245, 158, 11, 0.75);
     cursor: pointer;
-    padding: 0 2px;
+    padding: 0;
+    transition: background 120ms ease;
   }
-  .annotated:hover { background: rgba(253, 224, 71, 0.85); }
-  /* Inline sticky-note button right after the annotated text */
+  .annotated:hover { background: rgba(254, 243, 199, 0.6); }
+  /* While its note popover is open, keep the phrase emphasised. */
+  .annotated.is-active { background: rgba(254, 243, 199, 0.9); }
+  /* Small superscript dot marking that a note is attached. It sits above the
+     baseline so it never overlaps neighbouring words the way the old inline
+     emoji did — and the whole highlighted phrase is the click target. */
   .annotated::after {
-    content: '📝';
-    display: inline-block;
-    margin-left: 5px;
-    font-size: 0.85em;
-    line-height: 1;
-    background: #fffbeb;
-    border: 1px solid #f59e0b;
-    border-radius: 4px;
-    padding: 1px 4px;
-    cursor: pointer;
-    vertical-align: 1px;
-    transition: background 120ms ease, transform 120ms ease;
-  }
-  .annotated:hover::after {
-    background: #fde68a;
-    transform: translateY(-1px);
-  }
-
-  /* Read-only hover tooltip with the note text */
-  .annotation-tooltip {
-    position: absolute;
-    z-index: 800;
-    max-width: 320px;
-    background: #11131a;
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font: 500 13px/1.5 'Poppins', -apple-system, sans-serif;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    pointer-events: none;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .annotation-tooltip::before {
     content: '';
-    position: absolute;
-    top: -5px;
-    left: 14px;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-bottom: 5px solid #11131a;
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 3px;
+    border-radius: 50%;
+    background: #f59e0b;
+    vertical-align: super;
+    transition: transform 120ms ease, box-shadow 120ms ease;
   }
-  .annotation-tooltip-hint {
-    display: block;
-    margin-top: 4px;
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-    font-weight: 600;
+  .annotated:hover::after,
+  .annotated.is-active::after {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
   }
 
   /* Note edit popup */
@@ -1335,6 +1303,23 @@
     width: 280px;
     font-family: 'Poppins', -apple-system, sans-serif;
     color: #2b2f3a;
+  }
+  .note-popup-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 2px 8px;
+  }
+  .note-popup-title {
+    font: 600 12px/1 'Poppins', sans-serif;
+    letter-spacing: 0.02em;
+    color: #11131a;
+  }
+  .note-popup-kbd {
+    font: 500 10px/1 'Poppins', sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9a8f6a;
   }
   .note-popup textarea {
     width: 100%;
@@ -1562,10 +1547,14 @@
     pop.className = 'note-popup';
     pop.style.display = 'none';
     pop.innerHTML = `
-      <textarea placeholder="Add a note for this text…"></textarea>
+      <div class="note-popup-head">
+        <span class="note-popup-title">Note</span>
+        <span class="note-popup-kbd">⌘↵ save · esc close</span>
+      </div>
+      <textarea placeholder="Write a note for the highlighted text…"></textarea>
       <div class="note-popup-actions">
         <button type="button" class="note-popup-remove">Remove</button>
-        <button type="button" class="note-popup-save">Save</button>
+        <button type="button" class="note-popup-save">Done</button>
       </div>
     `;
     document.body.appendChild(pop);
@@ -1585,8 +1574,9 @@
     }
 
     function openPopupFor(span) {
-      hideTooltip();
+      if (activeSpan && activeSpan !== span) activeSpan.classList.remove('is-active');
       activeSpan = span;
+      span.classList.add('is-active');
       const ta = pop.querySelector('textarea');
       ta.value = span.getAttribute('data-note') || '';
       const rect = span.getBoundingClientRect();
@@ -1603,7 +1593,17 @@
 
     function closePopup() {
       pop.style.display = 'none';
+      const span = activeSpan;
       activeSpan = null;
+      if (!span) return;
+      span.classList.remove('is-active');
+      // A freshly-created highlight that never received any text: remove it so
+      // we don't leave an empty, note-less highlight behind (e.g. on Esc).
+      if (!span.getAttribute('data-note')) {
+        const ce = span.closest('[contenteditable="true"]');
+        unwrap(span);
+        if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     }
 
     function wrapSelectionAsNote() {
@@ -1824,52 +1824,10 @@
       }
     });
 
-    // Custom hover tooltip so the note text is visible without opening
-    // the editor popup. (Native title is removed; this replaces it.)
-    let tooltipEl = null;
-    function showTooltip(span) {
-      const note = span.getAttribute('data-note');
-      if (!note) return;
-      if (tooltipEl) tooltipEl.remove();
-      tooltipEl = document.createElement('div');
-      tooltipEl.className = 'annotation-tooltip';
-      tooltipEl.textContent = note;
-      const hint = document.createElement('span');
-      hint.className = 'annotation-tooltip-hint';
-      hint.textContent = 'Click to edit';
-      tooltipEl.appendChild(hint);
-      document.body.appendChild(tooltipEl);
-      const rect = span.getBoundingClientRect();
-      const tH = tooltipEl.offsetHeight;
-      const tW = tooltipEl.offsetWidth;
-      // Prefer below; flip above if no room at the bottom.
-      let top;
-      if (window.innerHeight - rect.bottom < tH + 16) {
-        top = rect.top + window.scrollY - tH - 8;
-      } else {
-        top = rect.bottom + window.scrollY + 8;
-      }
-      const left = Math.max(8, Math.min(rect.left + window.scrollX,
-        window.scrollX + document.documentElement.clientWidth - tW - 8));
-      tooltipEl.style.top = top + 'px';
-      tooltipEl.style.left = left + 'px';
-    }
-    function hideTooltip() {
-      if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
-    }
-    document.addEventListener('mouseover', (e) => {
-      const span = e.target.closest && e.target.closest('.annotated');
-      if (span) {
-        span.removeAttribute('title'); // ensure native tip doesn't appear
-        showTooltip(span);
-      }
-    });
-    document.addEventListener('mouseout', (e) => {
-      const span = e.target.closest && e.target.closest('.annotated');
-      if (!span) return;
-      const to = e.relatedTarget;
-      if (!to || !to.closest || !to.closest('.annotated')) hideTooltip();
-    });
+    // Hover no longer shows a separate read-only tooltip. Clicking the
+    // highlighted phrase opens one popover that both shows and edits the
+    // note — a single interaction that also works on touch, where there is
+    // no hover state to reveal the old tooltip.
 
     function commitPopup() {
       if (!activeSpan) { closePopup(); return; }
