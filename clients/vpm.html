@@ -1290,6 +1290,32 @@
     transform: scale(1.15);
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
   }
+  /* Hover hint — previews the note and shows how to edit it, so the edit
+     path is discoverable without clicking around. */
+  .note-hint {
+    position: absolute;
+    z-index: 800;
+    max-width: 300px;
+    background: #fffdf7;
+    color: #2b2f3a;
+    border: 1px solid #f0e0a4;
+    padding: 7px 11px;
+    border-radius: 8px;
+    font: 500 12.5px/1.5 'Poppins', -apple-system, sans-serif;
+    box-shadow: 0 8px 24px rgba(17, 19, 26, 0.14);
+    pointer-events: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .note-hint-cta {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #b08a2e;
+    font-weight: 600;
+  }
 
   /* Note edit popup */
   .note-popup {
@@ -1574,6 +1600,7 @@
     }
 
     function openPopupFor(span) {
+      if (typeof hideHint === 'function') hideHint();
       if (activeSpan && activeSpan !== span) activeSpan.classList.remove('is-active');
       activeSpan = span;
       span.classList.add('is-active');
@@ -1824,10 +1851,44 @@
       }
     });
 
-    // Hover no longer shows a separate read-only tooltip. Clicking the
-    // highlighted phrase opens one popover that both shows and edits the
-    // note — a single interaction that also works on touch, where there is
-    // no hover state to reveal the old tooltip.
+    // Hover hint: preview the note text and remind the user that clicking
+    // opens the editor. On touch (no hover) tapping the phrase opens the
+    // editor directly, so this is a desktop convenience, not the only path.
+    let hintEl = null;
+    function hideHint() { if (hintEl) { hintEl.remove(); hintEl = null; } }
+    function showHint(span) {
+      if (span === activeSpan) return; // editor already open for this note
+      const note = span.getAttribute('data-note');
+      hideHint();
+      hintEl = document.createElement('div');
+      hintEl.className = 'note-hint';
+      hintEl.textContent = note || 'Empty note';
+      const cta = document.createElement('span');
+      cta.className = 'note-hint-cta';
+      cta.textContent = 'Click to edit';
+      hintEl.appendChild(cta);
+      document.body.appendChild(hintEl);
+      const rect = span.getBoundingClientRect();
+      const tH = hintEl.offsetHeight;
+      const tW = hintEl.offsetWidth;
+      const top = (window.innerHeight - rect.bottom < tH + 16)
+        ? rect.top + window.scrollY - tH - 8
+        : rect.bottom + window.scrollY + 8;
+      const left = Math.max(8, Math.min(rect.left + window.scrollX,
+        window.scrollX + document.documentElement.clientWidth - tW - 8));
+      hintEl.style.top = top + 'px';
+      hintEl.style.left = left + 'px';
+    }
+    document.addEventListener('mouseover', (e) => {
+      const span = e.target.closest && e.target.closest('.annotated');
+      if (span) showHint(span);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const span = e.target.closest && e.target.closest('.annotated');
+      if (!span) return;
+      const to = e.relatedTarget;
+      if (!to || !to.closest || !to.closest('.annotated')) hideHint();
+    });
 
     function commitPopup() {
       if (!activeSpan) { closePopup(); return; }
