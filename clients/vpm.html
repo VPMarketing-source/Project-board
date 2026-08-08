@@ -1179,7 +1179,28 @@
     border: 1px solid rgba(255,255,255,0.18);
     cursor: pointer; padding: 0;
   }
+  /* Section-fill controls: square swatches (vs round text-colour dots) so the
+     two palettes are easy to tell apart. */
+  .fmt-toolbar .fmt-fill-icon { display: inline-flex; align-items: center; color: rgba(255,255,255,0.6); margin: 0 1px; }
+  .fmt-toolbar .fmt-fill {
+    width: 18px; height: 18px; border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.35);
+    cursor: pointer; padding: 0;
+    transition: transform 100ms ease;
+  }
+  .fmt-toolbar .fmt-fill:hover { transform: scale(1.12); }
+  .fmt-toolbar .fmt-fill-none {
+    background: #2a2d37; color: #cfd3dc; font-size: 12px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
   .fmt-toolbar .fmt-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 4px; align-self: center; }
+
+  /* Full-width section background applied to a block line. Zero vertical
+     padding keeps consecutive coloured lines flush as one continuous band. */
+  [contenteditable="true"] .pc-section {
+    padding: 0 6px;
+    box-sizing: border-box;
+  }
 
   /* Stuck-block remover: hover any pasted <table> inside an editable to
      get a small ✕ button that yanks the whole block in one click. */
@@ -1445,6 +1466,8 @@
      ===================================================================== */
   (function initFormatToolbar() {
     const COLORS = ['#11131a', '#2960ff', '#ef4444', '#16a34a', '#a86b14', '#6c6f7a'];
+    // Light tints for full-width section backgrounds (Morning, Work, etc.).
+    const FILLS  = ['#fef9c3', '#dcfce7', '#dbeafe', '#fee2e2', '#ede9fe', '#ffedd5'];
     const bar = document.createElement('div');
     bar.className = 'fmt-toolbar';
     bar.innerHTML = `
@@ -1482,7 +1505,13 @@
         </svg>
       </button>
       <span class="fmt-sep"></span>
-      ${COLORS.map((c) => `<button type="button" class="fmt-swatch" data-color="${c}" style="background:${c}" title="Color: ${c}"></button>`).join('')}
+      ${COLORS.map((c) => `<button type="button" class="fmt-swatch" data-color="${c}" style="background:${c}" title="Text colour: ${c}"></button>`).join('')}
+      <span class="fmt-sep"></span>
+      <span class="fmt-fill-icon" title="Section background — fills the whole line, not just the text">
+        <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="currentColor" opacity="0.85"></rect></svg>
+      </span>
+      ${FILLS.map((f) => `<button type="button" class="fmt-fill" data-fill="${f}" style="background:${f}" title="Section background"></button>`).join('')}
+      <button type="button" class="fmt-fill fmt-fill-none" data-fill="" title="Remove section background">⊘</button>
     `;
     document.body.appendChild(bar);
 
@@ -1555,6 +1584,8 @@
       } else if (btn.dataset.color) {
         document.execCommand('styleWithCSS', false, true);
         document.execCommand('foreColor', false, btn.dataset.color);
+      } else if (btn.dataset.fill !== undefined) {
+        applySectionFill(btn.dataset.fill);
       } else if (btn.dataset.action === 'clear-format') {
         clearFormatting();
       } else if (btn.dataset.action === 'add-note') {
@@ -1621,6 +1652,44 @@
         }
       });
 
+      fireInputFor(ce);
+    }
+
+    // Apply (or clear) a FULL-WIDTH background to the block line(s) the
+    // selection touches — a "section" colour rather than a text highlight.
+    // Passing '' removes any section colour. Consecutive coloured lines read
+    // as one continuous band, so you can shade Morning / Work / Evening etc.
+    function applySectionFill(color) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      let probe = range.commonAncestorContainer;
+      if (probe.nodeType === 3) probe = probe.parentElement;
+      const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
+      if (!ce) return;
+
+      // Lines are the top-level element children of the editable; colour every
+      // one the selection intersects.
+      let blocks = Array.from(ce.children).filter((el) => {
+        try { return range.intersectsNode(el); } catch (_) { return false; }
+      });
+      // Fallback: selection sits in a nested or bare block — colour its nearest
+      // block ancestor inside the editable.
+      if (!blocks.length) {
+        const b = probe.closest && probe.closest('div,p,li,h1,h2,h3,h4,h5,h6,.pc-todo');
+        if (b && b !== ce && ce.contains(b)) blocks = [b];
+      }
+      blocks.forEach((el) => {
+        if (color) {
+          el.classList.add('pc-section');
+          el.style.backgroundColor = color;
+        } else {
+          el.classList.remove('pc-section');
+          el.style.backgroundColor = '';
+          if (!el.getAttribute('class')) el.removeAttribute('class');
+          if (!el.getAttribute('style')) el.removeAttribute('style');
+        }
+      });
       fireInputFor(ce);
     }
 
