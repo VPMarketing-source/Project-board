@@ -1655,10 +1655,11 @@
       fireInputFor(ce);
     }
 
-    // Apply (or clear) a FULL-WIDTH background to the block line(s) the
-    // selection touches — a "section" colour rather than a text highlight.
-    // Passing '' removes any section colour. Consecutive coloured lines read
-    // as one continuous band, so you can shade Morning / Work / Evening etc.
+    // Apply (or clear) a FULL-WIDTH background to the block LINE(S) the
+    // selection covers — a "section" colour, not a text highlight. Passing ''
+    // removes it. The day cells nest lines inside larger container <div>s, so
+    // we must colour the individual line blocks and never a wrapper (which
+    // would shade far more than the user selected).
     function applySectionFill(color) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -1668,28 +1669,55 @@
       const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
       if (!ce) return;
 
-      // Lines are the top-level element children of the editable; colour every
-      // one the selection intersects.
-      let blocks = Array.from(ce.children).filter((el) => {
-        try { return range.intersectsNode(el); } catch (_) { return false; }
-      });
-      // Fallback: selection sits in a nested or bare block — colour its nearest
-      // block ancestor inside the editable.
-      if (!blocks.length) {
-        const b = probe.closest && probe.closest('div,p,li,h1,h2,h3,h4,h5,h6,.pc-todo');
-        if (b && b !== ce && ce.contains(b)) blocks = [b];
+      const LINE = /^(DIV|P|LI|H[1-6]|BLOCKQUOTE)$/;
+      // True overlap with an element's contents (strict, so a selection that
+      // merely ends at a block's boundary doesn't count it).
+      function hits(el) {
+        const er = document.createRange();
+        er.selectNodeContents(el);
+        try {
+          return range.compareBoundaryPoints(Range.END_TO_START, er) < 0
+              && range.compareBoundaryPoints(Range.START_TO_END, er) > 0;
+        } catch (_) { return false; }
       }
-      blocks.forEach((el) => {
-        if (color) {
-          el.classList.add('pc-section');
-          el.style.backgroundColor = color;
-        } else {
+      // A "line" is a checkbox todo, or a block that does NOT itself contain
+      // another block line with text — i.e. a leaf line, never a wrapper.
+      function isLine(el) {
+        if (el.classList && el.classList.contains('pc-todo')) return true;
+        if (!LINE.test(el.tagName)) return false;
+        const inner = el.querySelectorAll('div,p,li,h1,h2,h3,h4,h5,h6,.pc-todo');
+        for (let i = 0; i < inner.length; i++) {
+          if (inner[i].textContent && inner[i].textContent.trim()) return false;
+        }
+        return true;
+      }
+
+      if (color) {
+        let cand = [];
+        ce.querySelectorAll('div,p,li,h1,h2,h3,h4,h5,h6,.pc-todo').forEach((el) => {
+          if (hits(el) && isLine(el)) cand.push(el);
+        });
+        // Keep only outermost lines (drop inner blocks inside a chosen todo).
+        cand = cand.filter((el) => !cand.some((o) => o !== el && o.contains(el)));
+        if (!cand.length) {
+          const b = probe.closest && probe.closest('.pc-todo,div,p,li,h1,h2,h3,h4,h5,h6');
+          if (b && b !== ce && ce.contains(b)) cand = [b];
+        }
+        cand.forEach((el) => { el.classList.add('pc-section'); el.style.backgroundColor = color; });
+      } else {
+        // Clear every overlapping section fill, including legacy wrappers that
+        // spanned too much and any ancestor wrapper of the selection.
+        const targets = new Set();
+        ce.querySelectorAll('.pc-section').forEach((el) => { if (hits(el)) targets.add(el); });
+        let a = probe;
+        while (a && a !== ce) { if (a.classList && a.classList.contains('pc-section')) targets.add(a); a = a.parentNode; }
+        targets.forEach((el) => {
           el.classList.remove('pc-section');
           el.style.backgroundColor = '';
           if (!el.getAttribute('class')) el.removeAttribute('class');
           if (!el.getAttribute('style')) el.removeAttribute('style');
-        }
-      });
+        });
+      }
       fireInputFor(ce);
     }
 
