@@ -2004,6 +2004,88 @@
     });
   })();
 </script>
+<script>
+  /* =====================================================================
+     Undo / redo for every contenteditable region. The planner's custom
+     operations (notes, checkboxes, clear-formatting, font size) mutate the
+     DOM directly, which the browser's native undo cannot track — so we keep
+     a small per-field innerHTML history and handle Cmd/Ctrl+Z ourselves
+     (add Shift, or use Ctrl+Y, to redo). We only act when a planner text
+     field is focused, so the money spreadsheet keeps its own undo button.
+     ===================================================================== */
+  (function initUndoHistory() {
+    const HISTORY = new WeakMap();   // editable -> { stack:[html], i, t }
+    const MAX = 120;
+    const DEBOUNCE = 350;
+
+    function histFor(ce) {
+      let h = HISTORY.get(ce);
+      if (!h) { h = { stack: [ce.innerHTML], i: 0, t: null }; HISTORY.set(ce, h); }
+      return h;
+    }
+    function snapshot(ce) {
+      const h = histFor(ce);
+      const html = ce.innerHTML;
+      if (h.stack[h.i] === html) return;
+      h.stack = h.stack.slice(0, h.i + 1);
+      h.stack.push(html);
+      if (h.stack.length > MAX) h.stack.shift();
+      h.i = h.stack.length - 1;
+    }
+    function scheduleSnapshot(ce) {
+      const h = histFor(ce);
+      clearTimeout(h.t);
+      h.t = setTimeout(() => snapshot(ce), DEBOUNCE);
+    }
+    function restore(ce, html) {
+      ce.innerHTML = html;
+      ce.dispatchEvent(new Event('input', { bubbles: true }));
+      try {
+        const r = document.createRange();
+        r.selectNodeContents(ce); r.collapse(false);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      } catch (_) {}
+    }
+    function undo(ce) {
+      const h = histFor(ce);
+      clearTimeout(h.t);
+      if (h.stack[h.i] !== ce.innerHTML) snapshot(ce);   // capture latest edit first
+      if (h.i > 0) { h.i--; restore(ce, h.stack[h.i]); return true; }
+      return false;
+    }
+    function redo(ce) {
+      const h = histFor(ce);
+      if (h.i < h.stack.length - 1) { h.i++; restore(ce, h.stack[h.i]); return true; }
+      return false;
+    }
+
+    // Seed the pre-edit state on focus and before the first keystroke, so the
+    // earliest change in a field is always undoable.
+    document.addEventListener('focusin', (e) => {
+      const ce = e.target.closest && e.target.closest('[contenteditable="true"]');
+      if (ce) histFor(ce);
+    });
+    document.addEventListener('beforeinput', (e) => {
+      const ce = e.target.closest && e.target.closest('[contenteditable="true"]');
+      if (ce) histFor(ce);
+    }, true);
+    document.addEventListener('input', (e) => {
+      const ce = e.target.closest && e.target.closest('[contenteditable="true"]');
+      if (ce) scheduleSnapshot(ce);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return; // native undo in fields
+      const ce = ae && ae.closest && ae.closest('[contenteditable="true"]');
+      if (!ce) return;                                    // not in a planner field — leave Ctrl+Z alone
+      if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(ce); }
+      else if (k === 'z') { e.preventDefault(); undo(ce); }
+    }, true);
+  })();
+</script>
 <script src="../shared/calendar.js"></script>
 
 <style>
