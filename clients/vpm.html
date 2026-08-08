@@ -1432,6 +1432,13 @@
       <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><span class="fmt-i">I</span></button>
       <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><span class="fmt-u">U</span></button>
       <button type="button" data-cmd="strikeThrough" title="Strikethrough"><span class="fmt-s">S</span></button>
+      <button type="button" data-action="clear-format" title="Remove formatting">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 7h9"/>
+          <path d="M10.5 7v8"/>
+          <line x1="4.5" y1="19" x2="18.5" y2="5"/>
+        </svg>
+      </button>
       <span class="fmt-sep"></span>
       <button type="button" data-action="checkbox" title="Checkbox todo">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1528,6 +1535,9 @@
       } else if (btn.dataset.color) {
         document.execCommand('styleWithCSS', false, true);
         document.execCommand('foreColor', false, btn.dataset.color);
+      } else if (btn.dataset.action === 'clear-format') {
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('removeFormat', false, null);
       } else if (btn.dataset.action === 'add-note') {
         wrapSelectionAsNote();
       } else if (btn.dataset.action === 'font-smaller') {
