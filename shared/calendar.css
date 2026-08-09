@@ -518,26 +518,28 @@
   }
 .cell-blur {
     position: absolute;
-    top: 4px;
-    left: 4px;
-    width: 22px;
-    height: 22px;
-    display: none;
+    top: 6px;
+    left: 6px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
     background: rgba(255,255,255,0.92);
-    border: 1px solid rgba(17,19,26,0.12);
+    border: 1px solid rgba(17,19,26,0.14);
     border-radius: 50%;
-    color: #6c6f7a;
+    color: #8b8f9a;
     cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     z-index: 2;
   }
-.cell-blur svg { width: 13px; height: 13px; }
-.cwg-col:hover .cell-blur { display: inline-flex; }
-.cell-blur:hover { color: #2960ff; border-color: #2960ff; }
-.cell-blur.is-on { background: #dde7ff; border-color: #2960ff; color: #2960ff; }
-.cell-blur:focus-visible { display: inline-flex; outline: 2px solid #2960ff; outline-offset: 1px; }
+.cell-blur svg { width: 14px; height: 14px; }
+.cwg-col:hover .cell-blur { opacity: 1; }
+.cell-blur:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
+.cell-blur.is-on { opacity: 1; background: #dde7ff; border-color: #2960ff; color: #2960ff; }
+.cell-blur:focus-visible { opacity: 1; outline: 2px solid #2960ff; outline-offset: 1px; }
 .cwg-col-free.is-saved,
   .cal-week-inline-note.is-saved,
   .key-dates-body.is-saved,
