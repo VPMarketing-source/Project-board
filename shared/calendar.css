@@ -518,24 +518,24 @@
   }
 .cell-blur {
     position: absolute;
-    top: 6px;
-    left: 6px;
-    width: 24px;
-    height: 24px;
+    top: 5px;
+    left: 5px;
+    width: 17px;
+    height: 17px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    background: rgba(255,255,255,0.92);
-    border: 1px solid rgba(17,19,26,0.14);
+    background: rgba(255,255,255,0.9);
+    border: 1px solid rgba(17,19,26,0.12);
     border-radius: 50%;
-    color: #8b8f9a;
+    color: #9a9ea8;
     cursor: pointer;
-    opacity: 0.5;
+    opacity: 0.45;
     transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     z-index: 2;
   }
-.cell-blur svg { width: 14px; height: 14px; }
+.cell-blur svg { width: 10px; height: 10px; }
 .cwg-col:hover .cell-blur { opacity: 1; }
 .cell-blur:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
 .cell-blur.is-on { opacity: 1; background: #dde7ff; border-color: #2960ff; color: #2960ff; }
