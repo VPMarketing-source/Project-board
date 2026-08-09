@@ -224,6 +224,63 @@
       refreshRevert(key);
     }
 
+    /* ── Focus blur for day cells ───────────────────────────────────────
+       Softens a day so its colour blocks still read at a glance but the
+       text is deliberately hard to make out — a way to quiet the days you
+       are not working on so the week is less overwhelming. Stored under
+       pc-ops:: so the choice syncs across devices. The blur lifts on
+       hover / focus, so a blurred day stays fully readable and editable
+       the moment you deliberately look at it. */
+    const BLUR_KEY = STORE_KEY + '::blurred::v1';
+    function loadBlur() {
+      try { return JSON.parse(localStorage.getItem(BLUR_KEY) || '{}') || {}; }
+      catch (_) { return {}; }
+    }
+    function isBlurred(key) { return !!loadBlur()[key]; }
+    function setBlurred(key, on) {
+      const all = loadBlur();
+      if (on) all[key] = 1; else delete all[key];
+      try { localStorage.setItem(BLUR_KEY, JSON.stringify(all)); } catch (_) {}
+      // Reflect the choice on every copy of this day currently on screen:
+      // its own month, the adjacent month's leading/trailing copy, and the
+      // pinned "This week" clone.
+      document.querySelectorAll('.cwg-col[data-key="' + key + '"]').forEach((col) => {
+        col.classList.toggle('is-blurred', !!on);
+      });
+      document.querySelectorAll('.cell-blur[data-key="' + key + '"]').forEach((b) => {
+        b.classList.toggle('is-on', !!on);
+        b.setAttribute('aria-pressed', String(!!on));
+      });
+    }
+
+    const BLUR_EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+    /* The toggle lives on the column, never inside the contenteditable —
+       anything inside it would become part of the day's saved content.
+       Mirrors attachRevert; parked top-left so it never collides with the
+       revert button top-right. */
+    function attachBlurToggle(col, key) {
+      if (!col) return;
+      col.querySelectorAll(':scope > .cell-blur').forEach((n) => n.remove());
+      const on = isBlurred(key);
+      col.classList.toggle('is-blurred', on);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell-blur' + (on ? ' is-on' : '');
+      b.dataset.key = key;
+      b.setAttribute('aria-label', 'Blur this day to reduce focus');
+      b.setAttribute('aria-pressed', String(on));
+      b.title = 'Blur this day — soften it so the week is less overwhelming';
+      b.innerHTML = BLUR_EYE_SVG;
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setBlurred(key, !isBlurred(key));
+      });
+      if (getComputedStyle(col).position === 'static') col.style.position = 'relative';
+      col.appendChild(b);
+    }
+
     /* Brief "Saved" tick on the cell being edited, so persistence is
        visible rather than something you have to take on trust. */
     function flashSaved(el) {
@@ -483,6 +540,7 @@
           // Reseed in case the source DOM was stale.
           free.innerHTML = FREE[key] || '';
           attachRevert(free, key);
+          attachBlurToggle(free.parentNode, key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;
@@ -544,6 +602,7 @@
         const isToday = key === todayKey;
         const col = document.createElement('div');
         col.className = 'cwg-col' + (isToday ? ' is-today' : '');
+        col.dataset.key = key;
         col.innerHTML = `
           <div class="cwg-col-head">
             <span class="cwg-dow">${DOW[dowMon(d)]}</span>
@@ -556,6 +615,7 @@
         const free  = col.querySelector('.cwg-col-free');
         free.innerHTML = FREE[key] || '';
         attachRevert(free, key);
+        attachBlurToggle(col, key);
         free.addEventListener('input', () => {
           const html = free.innerHTML;
           if (!safeToPersist(free, html)) return;
@@ -745,6 +805,7 @@
           const free = col.querySelector('.cwg-col-free');
           free.innerHTML = FREE[d.key] || '';
           attachRevert(free, d.key);
+          attachBlurToggle(col, d.key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;

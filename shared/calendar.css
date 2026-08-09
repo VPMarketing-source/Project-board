@@ -499,6 +499,45 @@
 .cwg-col:hover .cell-revert:not([hidden]) { display: inline-flex; }
 .cell-revert:hover { color: #a86b14; border-color: #a86b14; }
 .cell-revert:focus-visible { display: inline-flex; outline: 2px solid #2960ff; outline-offset: 1px; }
+
+/* ── Focus blur ─────────────────────────────────────────────────────
+   Soften a quiet day so its colour blocks still read at a glance but
+   the text is deliberately hard to make out — less overwhelming when
+   scanning the week. The blur lifts on hover / focus so the day is
+   still fully readable and editable when you deliberately look at it. */
+.cwg-col.is-blurred .cwg-col-free {
+    filter: blur(3px);
+    opacity: 0.92;
+    transition: filter 0.22s ease, opacity 0.22s ease;
+    cursor: default;
+  }
+.cwg-col.is-blurred:hover .cwg-col-free,
+  .cwg-col.is-blurred:focus-within .cwg-col-free {
+    filter: blur(0);
+    opacity: 1;
+  }
+.cell-blur {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 22px;
+    height: 22px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(17,19,26,0.12);
+    border-radius: 50%;
+    color: #6c6f7a;
+    cursor: pointer;
+    z-index: 2;
+  }
+.cell-blur svg { width: 13px; height: 13px; }
+.cwg-col:hover .cell-blur { display: inline-flex; }
+.cell-blur:hover { color: #2960ff; border-color: #2960ff; }
+.cell-blur.is-on { background: #dde7ff; border-color: #2960ff; color: #2960ff; }
+.cell-blur:focus-visible { display: inline-flex; outline: 2px solid #2960ff; outline-offset: 1px; }
 .cwg-col-free.is-saved,
   .cal-week-inline-note.is-saved,
   .key-dates-body.is-saved,
