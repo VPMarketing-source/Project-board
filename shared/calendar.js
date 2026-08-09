@@ -281,6 +281,81 @@
       col.appendChild(b);
     }
 
+    /* ── Hide a day column ──────────────────────────────────────────────
+       Collapse a day you don't need to a thin strip so the week narrows
+       around the days you do use. Per-day and stored under pc-ops:: so the
+       choice syncs, mirrors to every copy of the day on screen, and is
+       undone by clicking the strip (or the toggle again). */
+    const HIDECOL_KEY = STORE_KEY + '::hiddencols::v1';
+    function loadHiddenCols() {
+      try { return JSON.parse(localStorage.getItem(HIDECOL_KEY) || '{}') || {}; }
+      catch (_) { return {}; }
+    }
+    function isColHidden(key) { return !!loadHiddenCols()[key]; }
+
+    /* Set a week grid's column widths from which of its day columns are
+       hidden: a hidden column gets a thin fixed track, the rest share the
+       space. Pure CSS can't express this — the grid template lives on the
+       row, not the cell — so we compute it per row after every render. */
+    function applyColLayout(grid) {
+      const cols = grid.querySelectorAll(':scope > .cwg-col');
+      if (!cols.length) return;
+      grid.style.gridTemplateColumns = Array.from(cols).map((c) =>
+        c.classList.contains('is-col-hidden') ? '34px' : 'minmax(0, 1fr)'
+      ).join(' ');
+    }
+    function applyAllColLayouts() {
+      document.querySelectorAll('.cal-grid, #cal-week-grid').forEach(applyColLayout);
+    }
+
+    function setColHidden(key, on) {
+      const all = loadHiddenCols();
+      if (on) all[key] = 1; else delete all[key];
+      try { localStorage.setItem(HIDECOL_KEY, JSON.stringify(all)); } catch (_) {}
+      document.querySelectorAll('.cwg-col[data-key="' + key + '"]').forEach((col) => {
+        col.classList.toggle('is-col-hidden', !!on);
+      });
+      document.querySelectorAll('.cell-hide[data-key="' + key + '"]').forEach((b) => {
+        b.classList.toggle('is-on', !!on);
+        b.setAttribute('aria-pressed', String(!!on));
+        b.title = on ? 'Show this day again' : 'Hide this day column';
+      });
+      applyAllColLayouts();
+    }
+
+    const HIDE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>';
+
+    /* Hide toggle — parked next to the blur eye. Hidden until you hover a
+       day, but always shown once the column is collapsed so the strip
+       carries its own reopen control. */
+    function attachHideToggle(col, key) {
+      if (!col) return;
+      col.querySelectorAll(':scope > .cell-hide').forEach((n) => n.remove());
+      const on = isColHidden(key);
+      col.classList.toggle('is-col-hidden', on);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell-hide' + (on ? ' is-on' : '');
+      b.dataset.key = key;
+      b.setAttribute('aria-label', 'Hide this day column');
+      b.setAttribute('aria-pressed', String(on));
+      b.title = on ? 'Show this day again' : 'Hide this day column';
+      b.innerHTML = HIDE_SVG;
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setColHidden(key, !isColHidden(key));
+      });
+      if (getComputedStyle(col).position === 'static') col.style.position = 'relative';
+      col.appendChild(b);
+      // Clicking anywhere on a collapsed strip (but not the toggle) reopens it.
+      col.addEventListener('click', (e) => {
+        if (!col.classList.contains('is-col-hidden')) return;
+        if (e.target.closest('.cell-hide')) return;
+        setColHidden(key, false);
+      });
+    }
+
     /* Brief "Saved" tick on the cell being edited, so persistence is
        visible rather than something you have to take on trust. */
     function flashSaved(el) {
@@ -509,6 +584,9 @@
     function render() {
       renderMonth();
       renderCurrentWeekPinned();
+      applyAllColLayouts();
+      // The pinned "This week" clone is built one frame later; re-apply then.
+      requestAnimationFrame(applyAllColLayouts);
     }
 
     // Render a copy of the current week's row (Mon–Sun grid + inline note +
@@ -541,6 +619,7 @@
           free.innerHTML = FREE[key] || '';
           attachRevert(free, key);
           attachBlurToggle(free.parentNode, key);
+          attachHideToggle(free.parentNode, key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;
@@ -569,6 +648,7 @@
             if (srcNote && srcNote !== note) srcNote.textContent = note.textContent;
           });
         });
+        applyAllColLayouts();
       });
     }
 
@@ -616,6 +696,7 @@
         free.innerHTML = FREE[key] || '';
         attachRevert(free, key);
         attachBlurToggle(col, key);
+        attachHideToggle(col, key);
         free.addEventListener('input', () => {
           const html = free.innerHTML;
           if (!safeToPersist(free, html)) return;
@@ -650,6 +731,7 @@
         });
         grid.appendChild(col);
       });
+      applyAllColLayouts();
     }
     function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function formatHour(h) {
@@ -806,6 +888,7 @@
           free.innerHTML = FREE[d.key] || '';
           attachRevert(free, d.key);
           attachBlurToggle(col, d.key);
+          attachHideToggle(col, d.key);
           free.addEventListener('input', () => {
             const html = free.innerHTML;
             if (!safeToPersist(free, html)) return;

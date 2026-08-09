@@ -541,6 +541,55 @@
 .cell-blur:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
 .cell-blur.is-on { opacity: 1; background: #dde7ff; border-color: #2960ff; color: #2960ff; }
 .cell-blur:focus-visible { opacity: 1; outline: 2px solid #2960ff; outline-offset: 1px; }
+
+/* ── Hidden day column ──────────────────────────────────────────────
+   A day collapsed to a thin strip; click the strip (or the toggle) to
+   reopen it. The grid track width itself is set from JS per row. */
+.cwg-col.is-col-hidden {
+    cursor: pointer;
+    overflow: hidden;
+    background: #f3efe1;
+  }
+.cwg-col.is-col-hidden .cwg-col-free,
+  .cwg-col.is-col-hidden .cwg-col-chips,
+  .cwg-col.is-col-hidden .cell-blur,
+  .cwg-col.is-col-hidden .cell-revert { display: none !important; }
+.cwg-col.is-col-hidden .cwg-col-head { padding: 12px 2px; gap: 2px; }
+.cwg-col.is-col-hidden .cwg-col-head .cwg-dow { font-size: 9px; }
+.cwg-col.is-col-hidden .cwg-col-head .cwg-num { font-size: 13px; }
+.cell-hide {
+    position: absolute;
+    top: 5px;
+    left: 24px;
+    width: 17px;
+    height: 17px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid rgba(17,19,26,0.12);
+    border-radius: 50%;
+    color: #9a9ea8;
+    cursor: pointer;
+    z-index: 3;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+.cell-hide svg { width: 11px; height: 11px; }
+.cwg-col:hover .cell-hide { display: inline-flex; }
+.cell-hide:hover { color: #2960ff; border-color: #2960ff; }
+/* Once collapsed, the toggle IS the reopen control: centre it near the
+   bottom of the strip, flip the chevrons outward, and keep it visible. */
+.cwg-col.is-col-hidden .cell-hide {
+    display: inline-flex;
+    top: auto;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%) rotate(180deg);
+    background: #dde7ff;
+    border-color: #2960ff;
+    color: #2960ff;
+  }
 .cwg-col-free.is-saved,
   .cal-week-inline-note.is-saved,
   .key-dates-body.is-saved,
