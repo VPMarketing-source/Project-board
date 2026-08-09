@@ -19,12 +19,15 @@
      ClickUp controls, none of which belong here. shared/calendar.js mounts
      itself into [data-calendar-root] when the dashboard is absent.
 
-     id is 'personal-planner', not 'vpm'. The id scopes localStorage and the
-     Supabase client_id column, so this calendar keeps its own days and
-     cannot read or overwrite the Personal space's.
+     id is DELIBERATELY 'vpm' — the same id the VP Marketing planner uses.
+     The id scopes localStorage and the Supabase client_id column, so
+     sharing it means this page and clients/vpm.html read and write the
+     exact same calendar: every day, task, event and week note is mirrored
+     across both, and edits sync live in either direction. The heading below
+     still reads "Personal Planner"; only the underlying data is shared.
      ===================================================================== */
   window.CLIENT_DATA = {
-    id:       'personal-planner',
+    id:       'vpm',
     name:     'Personal Planner',
     initials: 'PP',
     sub:      '',
