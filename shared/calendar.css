@@ -511,8 +511,9 @@
     transition: filter 0.22s ease, opacity 0.22s ease;
     cursor: default;
   }
-.cwg-col.is-blurred:hover .cwg-col-free,
-  .cwg-col.is-blurred:focus-within .cwg-col-free {
+/* Blur stays put — it only lifts when you click INTO the day to edit it,
+   so toggling the eye is a clean on/off and hovering doesn't clear it. */
+.cwg-col.is-blurred:focus-within .cwg-col-free {
     filter: blur(0);
     opacity: 1;
   }
