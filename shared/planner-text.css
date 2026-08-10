@@ -62,13 +62,12 @@
   }
   .fmt-toolbar .fmt-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 4px; align-self: center; }
 
-  /* Full-width section background applied to a block line. Zero vertical
-     margin removes the gaps that would otherwise show the white cell colour
-     between lines (e.g. the 4px margins on checkbox todos), so consecutive
-     coloured lines merge into one solid continuous band. A little vertical
-     padding gives breathing room that stays inside the colour. */
+  /* Full-width section background applied to a block line — a plain
+     highlighter. Zero padding AND zero margin so a highlighted line lines up
+     exactly with the plain lines above and below it: the colour never nudges
+     the text sideways or down, it just sits behind it. */
   [contenteditable="true"] .pc-section {
-    padding: 0 6px;
+    padding: 0;
     box-sizing: border-box;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
