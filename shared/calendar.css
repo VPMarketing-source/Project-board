@@ -815,23 +815,11 @@
     background: #fff;
     box-shadow: inset 0 0 0 1px #2960ff;
   }
-/* Keep tabs compact: closed tabs show only "Week N + range"; the note, the
-   note button and the event count are hidden there and revealed on the
-   open/active week (which has room). Notes stay fully editable when open. */
-.cal-weeks > .cal-week > .cal-week-head .cal-week-count { display: none; }
-.cal-weeks > .cal-week:not(.is-open) > .cal-week-head .cal-week-inline-note,
-.cal-weeks > .cal-week:not(.is-open) > .cal-week-head .cal-week-note-btn { display: none; }
-/* On the open (active) tab, the note + button wrap onto their own line so
-   the tab stays the same narrow width as the others. */
-.cal-weeks > .cal-week.is-open > .cal-week-head { flex-wrap: wrap; }
-.cal-weeks > .cal-week.is-open > .cal-week-head .cal-week-inline-note {
-    order: 5;
-    flex: 1 1 100%;
-    max-width: 100%;
-    white-space: normal;
-    margin-top: 2px;
-  }
-.cal-weeks > .cal-week.is-open > .cal-week-head .cal-week-note-btn { order: 6; }
+/* Tabs show only "Week N + range" — the week notes, note button and event
+   count are hidden on every tab. (The note data is untouched, just not shown.) */
+.cal-weeks > .cal-week > .cal-week-head .cal-week-count,
+.cal-weeks > .cal-week > .cal-week-head .cal-week-inline-note,
+.cal-weeks > .cal-week > .cal-week-head .cal-week-note-btn { display: none; }
 /* The open week's grid takes a full-width row below all the tabs. */
 .cal-weeks > .cal-week > .cal-week-body {
     order: 1;
