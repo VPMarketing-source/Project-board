@@ -643,14 +643,50 @@
       });
     }
 
+    // True when an element is a blank line (empty or just a <br>, no checkbox).
+    function isBlankLine(el) {
+      return el && el.nodeType === 1 &&
+             !el.textContent.replace(/​/g, '').trim() &&
+             !el.querySelector('input, img');
+    }
+
     function insertFragmentAtCaret(frag) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
       range.deleteContents();                 // paste replaces any selection
+      const ce = (function () {
+        let n = range.startContainer;
+        if (n && n.nodeType === 3) n = n.parentElement;
+        return n && n.closest ? n.closest('[contenteditable="true"]') : null;
+      })();
+      // The block line the caret sits in (a direct child of the editor). If
+      // it's blank, paste would leave it behind as an extra empty line, so
+      // remember it and drop it after inserting.
+      let caretLine = null;
+      if (ce) {
+        const sc = range.startContainer;
+        if (sc === ce) {
+          // Caret sits between blocks — take the block just before it.
+          caretLine = ce.childNodes[range.startOffset - 1] || ce.childNodes[range.startOffset] || null;
+          if (caretLine && caretLine.nodeType !== 1) caretLine = null;
+        } else {
+          let b = sc;
+          if (b && b.nodeType === 3) b = b.parentElement;
+          while (b && b.parentElement && b.parentElement !== ce) b = b.parentElement;
+          if (b && b !== ce && b.parentElement === ce) caretLine = b;
+        }
+      }
       const nodes = [...frag.childNodes];
       const last = nodes[nodes.length - 1];
-      range.insertNode(frag);
+      // If the caret is in a blank line, swap it for the pasted content
+      // (avoids leaving a stray empty line or nesting inside it). Otherwise
+      // insert at the caret, which keeps the position within a real line.
+      if (caretLine && caretLine.parentNode && isBlankLine(caretLine)) {
+        caretLine.replaceWith(frag);
+      } else {
+        range.insertNode(frag);
+      }
       if (last) {
         const r = document.createRange();
         r.setStartAfter(last);
@@ -680,6 +716,10 @@
       if (!frag || !frag.childNodes.length) frag = textToFragment(text);
       if (!frag.childNodes.length) return;
       normalizeTodos(frag);                 // flatten any nested/malformed checkboxes
+      // Drop trailing blank lines — clipboards usually append a newline, which
+      // would otherwise land as an extra empty line on every paste.
+      while (frag.lastChild && isBlankLine(frag.lastChild)) frag.removeChild(frag.lastChild);
+      if (!frag.childNodes.length) return;
       e.preventDefault();
       insertFragmentAtCaret(frag);
       ce.dispatchEvent(new Event('input', { bubbles: true }));
