@@ -75,6 +75,17 @@
   /* Keep the checkbox aligned nicely now that the todo margin is gone. */
   [contenteditable="true"] .pc-todo.pc-section { padding-top: 0; padding-bottom: 0; }
 
+  /* Divider line — a thin horizontal rule between blocks of content. */
+  .pc-divider {
+    height: 0;
+    border: 0;
+    border-top: 1px solid #d8d2b8;
+    margin: 6px 0;
+    line-height: 0;
+    font-size: 0;
+    user-select: none;
+  }
+
   /* Stuck-block remover: hover any pasted <table> inside an editable to
      get a small ✕ button that yanks the whole block in one click. */
   .pc-block-del {

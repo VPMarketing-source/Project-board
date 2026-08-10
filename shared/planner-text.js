@@ -51,6 +51,9 @@
       <button type="button" data-action="dropdown" title="Collapsible section — click a heading to fold the lines under it">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
+      <button type="button" data-action="divider" title="Insert a divider line">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+      </button>
       <span class="fmt-sep"></span>
       <button type="button" data-action="font-smaller" title="Smaller text"><span style="font-size:9px;font-weight:700;letter-spacing:0">A−</span></button>
       <button type="button" data-action="font-larger"  title="Larger text"><span style="font-size:14px;font-weight:700;letter-spacing:0">A+</span></button>
@@ -157,6 +160,8 @@
         insertCheckbox();
       } else if (btn.dataset.action === 'dropdown') {
         makeDropdown();
+      } else if (btn.dataset.action === 'divider') {
+        insertDivider();
       }
       // Re-fire whatever input listener the surrounding editor wired up so the
       // change is persisted to localStorage.
@@ -312,6 +317,29 @@
       const s = window.getSelection();
       s.removeAllRanges();
       s.addRange(r);
+    }
+
+    // Drop a horizontal divider line on its own row after the current line,
+    // then a fresh empty line below it with the caret ready. The divider is
+    // contenteditable=false so it acts as one atomic block, and it saves as
+    // plain markup with the rest of the day content.
+    function insertDivider() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      let probe = sel.getRangeAt(0).commonAncestorContainer;
+      if (probe.nodeType === 3) probe = probe.parentElement;
+      const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
+      if (!ce) return;
+      const hr = document.createElement('div');
+      hr.className = 'pc-divider';
+      hr.setAttribute('contenteditable', 'false');
+      const after = document.createElement('div');
+      after.innerHTML = '<br>';
+      const line = currentLine(ce);
+      if (line) { line.after(hr); hr.after(after); }
+      else { ce.appendChild(hr); ce.appendChild(after); }
+      placeCaret(after, false);
+      ce.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     // Wrap the current line into a toggle: its text becomes the title, and a
