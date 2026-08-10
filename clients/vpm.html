@@ -1274,47 +1274,13 @@
     customHomeHtml: '',
   };
 </script>
+  <!-- Single source of truth for the calendar: load the shared stylesheet
+       last so it supersedes the inline calendar CSS above. This keeps VP
+       Marketing's calendar identical to the Personal Planner and means
+       future calendar tweaks only happen in shared/calendar.css. -->
+  <link rel="stylesheet" href="../shared/calendar.css?v=3" />
 </head>
 <body>
-<style>
-  /* ═══════════════════════════════════════════════════════════════════
-     Weeks as a horizontal tab row (mirror of shared/calendar.css). Loaded
-     after the inline calendar styles so it wins on source order. The pinned
-     "This week" clone lives in .cwp-body (not .cal-weeks), so it is not
-     affected by the display:contents scoping here. */
-  .cal-weeks {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .cal-weeks > .cal-week { display: contents; }
-  .cal-weeks > .cal-week > .cal-week-head {
-    order: 0;
-    flex: 0 1 auto;
-    width: auto;
-    max-width: 240px;
-    gap: 6px;
-    padding: 6px 10px;
-    border: 1px solid #efe9d3;
-    border-radius: 10px;
-    background: #faf6e7;
-  }
-  .cal-weeks > .cal-week.has-today > .cal-week-head { border-color: #b8c8ff; background: #eef3ff; }
-  .cal-weeks > .cal-week.is-open > .cal-week-head { border-color: #2960ff; background: #fff; box-shadow: inset 0 0 0 1px #2960ff; }
-  .cal-weeks > .cal-week > .cal-week-head .cal-week-count,
-  .cal-weeks > .cal-week > .cal-week-head .cal-week-inline-note,
-  .cal-weeks > .cal-week > .cal-week-head .cal-week-note-btn { display: none; }
-  .cal-weeks > .cal-week > .cal-week-body {
-    order: 1;
-    flex: 0 0 100%;
-    width: 100%;
-    border: 1px solid #efe9d3;
-    border-radius: 12px;
-    overflow: hidden;
-    margin-top: 2px;
-  }
-</style>
 <script src="../shared/dashboard.js"></script>
 <script src="../shared/nav.js"></script>
 <script src="../shared/planner-text.js?v=2"></script>
