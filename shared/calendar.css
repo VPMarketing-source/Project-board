@@ -478,27 +478,33 @@
 .cal-month-body { display: none; padding: 0 14px 14px; }
 .cal-month.is-open .cal-month-body { display: block; }
 .cal-month-body .cal-weeks { gap: 10px; }
+/* ── Day-cell corner controls: undo (revert), blur (eye), hide ──────
+   One size (18px), one style, grouped top-left in a row, faint at rest
+   and solid on hover, so the three read as a consistent little cluster. */
 .cell-revert {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 22px;
-    height: 22px;
-    display: none;
+    top: 5px;
+    left: 49px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    background: rgba(255,255,255,0.92);
+    background: rgba(255,255,255,0.9);
     border: 1px solid rgba(17,19,26,0.12);
     border-radius: 50%;
-    color: #6c6f7a;
+    color: #9a9ea8;
     cursor: pointer;
-    z-index: 2;
+    opacity: 0.4;
+    z-index: 3;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
-.cell-revert svg { width: 12px; height: 12px; }
-.cwg-col:hover .cell-revert:not([hidden]) { display: inline-flex; }
-.cell-revert:hover { color: #a86b14; border-color: #a86b14; }
-.cell-revert:focus-visible { display: inline-flex; outline: 2px solid #2960ff; outline-offset: 1px; }
+.cell-revert[hidden] { display: none; }
+.cell-revert svg { width: 11px; height: 11px; }
+.cwg-col:hover .cell-revert:not([hidden]) { opacity: 1; }
+.cell-revert:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
+.cell-revert:focus-visible { opacity: 1; outline: 2px solid #2960ff; outline-offset: 1px; }
 
 /* ── Focus blur ─────────────────────────────────────────────────────
    Soften a quiet day so its colour blocks still read at a glance but
@@ -521,8 +527,8 @@
     position: absolute;
     top: 5px;
     left: 5px;
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -532,11 +538,11 @@
     border-radius: 50%;
     color: #9a9ea8;
     cursor: pointer;
-    opacity: 0.45;
+    opacity: 0.4;
     transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    z-index: 2;
+    z-index: 3;
   }
-.cell-blur svg { width: 10px; height: 10px; }
+.cell-blur svg { width: 11px; height: 11px; }
 .cwg-col:hover .cell-blur { opacity: 1; }
 .cell-blur:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
 .cell-blur.is-on { opacity: 1; background: #dde7ff; border-color: #2960ff; color: #2960ff; }
@@ -560,10 +566,10 @@
 .cell-hide {
     position: absolute;
     top: 5px;
-    left: 24px;
-    width: 17px;
-    height: 17px;
-    display: none;
+    left: 27px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
@@ -572,16 +578,20 @@
     border-radius: 50%;
     color: #9a9ea8;
     cursor: pointer;
+    opacity: 0.4;
     z-index: 3;
-    transition: color 0.15s ease, border-color 0.15s ease;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
 .cell-hide svg { width: 11px; height: 11px; }
-.cwg-col:hover .cell-hide { display: inline-flex; }
-.cell-hide:hover { color: #2960ff; border-color: #2960ff; }
+.cwg-col:hover .cell-hide { opacity: 1; }
+.cell-hide:hover { opacity: 1; color: #2960ff; border-color: #2960ff; }
+.cell-hide.is-on { opacity: 1; background: #dde7ff; border-color: #2960ff; color: #2960ff; }
+.cell-hide:focus-visible { opacity: 1; outline: 2px solid #2960ff; outline-offset: 1px; }
 /* Once collapsed, the toggle IS the reopen control: centre it near the
    bottom of the strip, flip the chevrons outward, and keep it visible. */
 .cwg-col.is-col-hidden .cell-hide {
     display: inline-flex;
+    opacity: 1;
     top: auto;
     bottom: 8px;
     left: 50%;
