@@ -364,6 +364,16 @@
       drop.classList.toggle('is-collapsed', collapsed);
     }
 
+    // Pressing on the chevron must NOT move the text caret. The chevron is a
+    // contenteditable="false" element inside the editable cell, so without
+    // this a mousedown on it drops the caret into the heading — which makes
+    // every collapse/expand disturb the cursor and selection. Guarding
+    // mousedown (capture, before the browser's default caret placement)
+    // keeps focus and caret exactly where they were.
+    document.addEventListener('mousedown', (e) => {
+      if (e.target.closest && e.target.closest('.pc-drop-toggle')) e.preventDefault();
+    }, true);
+
     // Clicking the chevron collapses/expands its toggle. Capture phase: day
     // columns stopPropagation on click (to shield the week toggle), which
     // would otherwise swallow this during bubbling.
@@ -405,8 +415,17 @@
         drop.after(out);
         placeCaret(out, false);
       } else {
+        // Split the current line at the caret: whatever follows the caret
+        // moves down into the new line, so Enter behaves like a normal
+        // paragraph break rather than always inserting a blank line.
         const nl = document.createElement('div');
-        nl.innerHTML = '<br>';
+        const tail = sel.getRangeAt(0).cloneRange();
+        tail.collapse(false);                 // caret position
+        tail.setEndAfter(line.lastChild || line);
+        const frag = tail.extractContents();
+        nl.appendChild(frag);
+        if (!nl.textContent && !nl.querySelector('input,img')) nl.innerHTML = '<br>';
+        if (!line.textContent && !line.querySelector('input,img')) line.innerHTML = '<br>';
         line.after(nl);
         placeCaret(nl, false);
       }

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Collapsible section (.pc-drop) — tests</title>
+<!--
+  Browser test for the planner's collapsible-section "dropdown" (.pc-drop),
+  implemented in shared/planner-text.js. These are integration tests: they
+  load the REAL toolbar/editor code and drive it exactly as a user would
+  (select a line, click the dropdown button, click the chevron, press Enter),
+  then assert on the resulting DOM.
+
+  Run: open this file over the dev server, e.g.
+    http://localhost:5555/tests/dropdown.test.html
+  A real browser is required — layout assertions (indent, hidden body) need
+  getBoundingClientRect / computed styles, which jsdom does not provide.
+
+  Results render on the page and are also exposed on window.__TEST_RESULTS.
+-->
+<link rel="stylesheet" href="../shared/planner-text.css" />
+<style>
+  body { font-family: system-ui, sans-serif; padding: 24px; color: #11131a; max-width: 900px; }
+  h1 { font-size: 18px; }
+  .cwg-col-free { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-height: 60px; font-size: 14px; line-height: 1.5; }
+  #summary { font-weight: 700; margin: 12px 0; }
+  #out { background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px; white-space: pre-wrap; font: 12px/1.6 ui-monospace, monospace; }
+  .ok { color: #3fb950; } .bad { color: #f85149; }
+</style>
+</head>
+<body>
+  <h1>Collapsible section (.pc-drop) — tests</h1>
+  <!-- The editor cell. Uses the same class the planner uses so shared CSS applies. -->
+  <div id="editor" class="cwg-col-free" contenteditable="true"></div>
+  <div id="summary"></div>
+  <pre id="out"></pre>
+
+  <!-- Load the real editor code (self-initialising IIFE). -->
+  <script src="../shared/planner-text.js"></script>
+  <script>
+    (function runTests() {
+      const results = [];
+      const assert = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+      const ed = document.getElementById('editor');
+      const reset = (html) => { ed.innerHTML = html; };
+      const selectContents = (el) => { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+      const inBody = () => { const a = getSelection().anchorNode; const n = a && a.nodeType === 3 ? a.parentNode : a; return !!(n && n.closest && n.closest('.pc-drop-body')); };
+      const pressEnter = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      // Drive the real "make dropdown" path: select a line, prime the toolbar, click its button.
+      function makeDropdownFromLine(el) {
+        ed.focus();
+        selectContents(el);
+        document.dispatchEvent(new Event('selectionchange'));
+        document.querySelector('.fmt-toolbar [data-action="dropdown"]').click();
+        return ed.querySelector('.pc-drop');
+      }
+
+      // ── 1. Opening / creation ──────────────────────────────────────
+      reset('<div id="a">Morning Routine</div><div>Existing line after</div>');
+      let drop = makeDropdownFromLine(document.getElementById('a'));
+      assert('creates .pc-drop with head, toggle and body',
+        drop && drop.querySelector('.pc-drop-toggle') && drop.querySelector('.pc-drop-title') && drop.querySelector('.pc-drop-body'));
+      assert('selected text becomes the toggle title',
+        drop && /Morning Routine/.test(drop.querySelector('.pc-drop-title').textContent));
+      assert('a pre-existing line is NOT swallowed into the toggle',
+        !!ed.querySelector('.pc-drop + div'));
+      assert('caret lands inside the body ready to type', inBody());
+
+      // ── 2. Positioning / layout ────────────────────────────────────
+      const bodyCS = getComputedStyle(drop.querySelector('.pc-drop-body'));
+      assert('body is indented under the head (margin-left > 0)', parseFloat(bodyCS.marginLeft) > 0, 'margin-left=' + bodyCS.marginLeft);
+      assert('body has the left-rail border', parseFloat(bodyCS.borderLeftWidth) > 0, 'border=' + bodyCS.borderLeftWidth);
+      assert('head lays out as a flex row', getComputedStyle(drop.querySelector('.pc-drop-head')).display === 'flex');
+
+      // ── 3. Focus / caret guard (the fix) ───────────────────────────
+      const md = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      drop.querySelector('.pc-drop-toggle').dispatchEvent(md);
+      assert('chevron mousedown is prevented so the caret cannot jump', md.defaultPrevented);
+
+      // ── 4. Selecting the option (toggle open/close) ────────────────
+      const tog = drop.querySelector('.pc-drop-toggle');
+      tog.click();
+      assert('chevron click collapses the section', drop.classList.contains('is-collapsed'));
+      assert('body is hidden while collapsed', getComputedStyle(drop.querySelector('.pc-drop-body')).display === 'none');
+      tog.click();
+      assert('chevron click again expands it', !drop.classList.contains('is-collapsed'));
+      assert('body is visible while expanded', getComputedStyle(drop.querySelector('.pc-drop-body')).display !== 'none');
+
+      // ── 5. Outside click must not change state (inline, not a menu) ─
+      tog.click(); // collapse
+      const wasCollapsed = drop.classList.contains('is-collapsed');
+      document.body.click();
+      assert('an outside click does not flip the collapsed state', drop.classList.contains('is-collapsed') === wasCollapsed);
+      tog.click(); // leave expanded
+
+      // ── 6. Enter splits at the caret and stays in the body ─────────
+      reset('<div id="b">Heading</div>');
+      drop = makeDropdownFromLine(document.getElementById('b'));
+      const body = drop.querySelector('.pc-drop-body');
+      const first = body.querySelector('div');
+      first.textContent = 'StretchMedication';
+      (function () { const r = document.createRange(); r.setStart(first.firstChild, 7); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); })();
+      pressEnter();
+      const lines = [...body.children].map((c) => c.textContent);
+      assert('Enter splits the line at the caret', lines[0] === 'Stretch' && lines[1] === 'Medication', JSON.stringify(lines));
+      assert('both halves stay inside the body', body.children.length >= 2 && [...body.children].every((c) => c.parentElement === body));
+
+      // ── 7. Enter on an empty last line exits the toggle ────────────
+      const empty = document.createElement('div'); empty.innerHTML = '<br>'; body.appendChild(empty);
+      (function () { const r = document.createRange(); r.selectNodeContents(empty); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); })();
+      pressEnter();
+      assert('empty-line Enter exits to a plain line after the toggle',
+        !!(drop.nextElementSibling && !drop.nextElementSibling.closest('.pc-drop')));
+
+      // ── 8. Toggling the button again unwraps the section ───────────
+      reset('<div id="c">Section title</div>');
+      drop = makeDropdownFromLine(document.getElementById('c'));
+      selectContents(drop.querySelector('.pc-drop-title'));
+      document.dispatchEvent(new Event('selectionchange'));
+      document.querySelector('.fmt-toolbar [data-action="dropdown"]').click();
+      assert('clicking the dropdown button on an existing toggle unwraps it', !ed.querySelector('.pc-drop'));
+
+      // ── Report ─────────────────────────────────────────────────────
+      ed.innerHTML = '';
+      const passed = results.filter((r) => r.pass).length;
+      const out = document.getElementById('out');
+      out.innerHTML = results.map((r) =>
+        '<span class="' + (r.pass ? 'ok' : 'bad') + '">' + (r.pass ? 'PASS' : 'FAIL') + '</span>  ' +
+        r.name + (r.detail ? '  ::  ' + r.detail : '')
+      ).join('\n');
+      const sum = document.getElementById('summary');
+      sum.textContent = passed + ' / ' + results.length + ' passed';
+      sum.className = passed === results.length ? 'ok' : 'bad';
+      window.__TEST_RESULTS = { passed, total: results.length, allPassed: passed === results.length, results };
+    })();
+  </script>
+</body>
+</html>
