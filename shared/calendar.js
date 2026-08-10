@@ -797,6 +797,185 @@
       }
     }
 
+    /* =====================================================================
+       Shared day sections
+       Each week is divided into horizontal bands (Early Morning, Work Block
+       1, …) that line up across all 7 days. A week's section list —
+       {id, name, height} — is stored per week; the free text inside each
+       day×section cell is stored per (dayKey, sectionId). Both live under
+       pc-ops:: so they sync. A section's height is shared across the week,
+       so dragging one boundary resizes that band for every day at once.
+       Cells have a fixed height and scroll internally, so typing never
+       shoves the rest of the page down. ==================================== */
+    const SECTIONS_KEY = STORE_KEY + '::sections::v1';
+    const SECFREE_KEY  = STORE_KEY + '::sectionfree::v1';
+    let __sidSeq = 0;
+    function genSectionId() {
+      return 's' + Date.now().toString(36) + (__sidSeq++).toString(36) +
+             Math.floor(Math.random() * 1e4).toString(36);
+    }
+    function loadAllSections() { try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') || {}; } catch (_) { return {}; } }
+    function saveAllSections(all) { try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(all)); } catch (_) {} }
+    function loadSecFree() { try { return JSON.parse(localStorage.getItem(SECFREE_KEY) || '{}') || {}; } catch (_) { return {}; } }
+    function saveSecFree(all) { try { localStorage.setItem(SECFREE_KEY, JSON.stringify(all)); } catch (_) {} }
+    function cellKey(dayKey, sid) { return dayKey + '::' + sid; }
+
+    // A week's sections, keyed by its Monday date. The first time a week is
+    // opened we create one default section and COPY each day's existing
+    // freeform text into it — non-destructive: the old ::freeform store is
+    // left untouched, so nothing is ever lost.
+    function getWeekSections(days) {
+      const weekKey = days[0].key;
+      const all = loadAllSections();
+      if (!all[weekKey] || !all[weekKey].length) {
+        const sid = genSectionId();
+        all[weekKey] = [{ id: sid, name: 'Section 1', height: 220 }];
+        saveAllSections(all);
+        const FREE = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
+        const sf = loadSecFree();
+        let changed = false;
+        days.forEach((d) => {
+          const ck = cellKey(d.key, sid);
+          if (FREE[d.key] && !sf[ck]) { sf[ck] = FREE[d.key]; changed = true; }
+        });
+        if (changed) saveSecFree(sf);
+      }
+      return loadAllSections()[weekKey];
+    }
+    function addSection(weekKey) {
+      const all = loadAllSections();
+      (all[weekKey] = all[weekKey] || []).push({ id: genSectionId(), name: 'New section', height: 150 });
+      saveAllSections(all);
+      render();
+    }
+    function deleteSection(weekKey, sid, days) {
+      const all = loadAllSections();
+      const arr = all[weekKey] || [];
+      if (arr.length <= 1) return;                 // always keep one band
+      all[weekKey] = arr.filter((s) => s.id !== sid);
+      saveAllSections(all);
+      const sf = loadSecFree();
+      days.forEach((d) => { delete sf[cellKey(d.key, sid)]; });
+      saveSecFree(sf);
+      render();
+    }
+    function moveSection(weekKey, sid, dir) {
+      const all = loadAllSections();
+      const arr = all[weekKey] || [];
+      const i = arr.findIndex((s) => s.id === sid);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return;
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      saveAllSections(all);
+      render();
+    }
+    function startSectionResize(e, weekKey, sid, row) {
+      e.preventDefault();
+      e.stopPropagation();
+      const startY = e.clientY;
+      const startH = row.getBoundingClientRect().height;
+      const onMove = (ev) => { row.style.height = Math.max(48, startH + (ev.clientY - startY)) + 'px'; };
+      const onUp = (ev) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        const h = Math.round(Math.max(48, startH + (ev.clientY - startY)));
+        const all = loadAllSections();
+        const s = (all[weekKey] || []).find((x) => x.id === sid);
+        if (s) { s.height = h; saveAllSections(all); }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    // Build the section grid for one week into `container` (the .cal-grid).
+    function renderSectionGrid(days, container, todayKey) {
+      const weekKey = days[0].key;
+      container.innerHTML = '';
+      container.classList.add('cal-sec-grid');
+
+      const headRow = document.createElement('div');
+      headRow.className = 'cal-sec-headrow';
+      headRow.innerHTML = '<div class="cal-sec-corner"></div>';
+      days.forEach((d) => {
+        const h = document.createElement('div');
+        h.className = 'cwg-col-head cal-sec-dayhead' + (d.key === todayKey ? ' is-today' : '');
+        h.innerHTML = '<span class="cwg-dow">' + DOW[dowMon(d.dt)] + '</span>' +
+                      '<span class="cwg-num">' + d.dt.getDate() + '</span>';
+        headRow.appendChild(h);
+      });
+      container.appendChild(headRow);
+
+      const sections = getWeekSections(days);
+      const sf = loadSecFree();
+
+      sections.forEach((sec) => {
+        const row = document.createElement('div');
+        row.className = 'cal-sec-row';
+        row.style.height = sec.height + 'px';
+        row.dataset.section = sec.id;
+
+        const label = document.createElement('div');
+        label.className = 'cal-sec-label';
+        label.innerHTML =
+          '<span class="cal-sec-name" contenteditable="true" spellcheck="false"></span>' +
+          '<div class="cal-sec-tools">' +
+            '<button type="button" class="cal-sec-up" title="Move section up" aria-label="Move up">↑</button>' +
+            '<button type="button" class="cal-sec-down" title="Move section down" aria-label="Move down">↓</button>' +
+            '<button type="button" class="cal-sec-del" title="Delete section" aria-label="Delete">×</button>' +
+          '</div>';
+        const nameEl = label.querySelector('.cal-sec-name');
+        nameEl.textContent = sec.name;
+        nameEl.addEventListener('click', (e) => e.stopPropagation());
+        nameEl.addEventListener('input', () => {
+          if (!safeToPersist(nameEl, nameEl.textContent)) return;
+          const all = loadAllSections();
+          const s = (all[weekKey] || []).find((x) => x.id === sec.id);
+          if (s) { s.name = nameEl.textContent; saveAllSections(all); flashSaved(nameEl); }
+        });
+        label.querySelector('.cal-sec-up').addEventListener('click', (e) => { e.stopPropagation(); moveSection(weekKey, sec.id, -1); });
+        label.querySelector('.cal-sec-down').addEventListener('click', (e) => { e.stopPropagation(); moveSection(weekKey, sec.id, 1); });
+        label.querySelector('.cal-sec-del').addEventListener('click', (e) => { e.stopPropagation(); deleteSection(weekKey, sec.id, days); });
+        row.appendChild(label);
+
+        days.forEach((d) => {
+          const cell = document.createElement('div');
+          cell.className = 'cwg-col-free cal-sec-cell' + (d.key === todayKey ? ' is-today' : '');
+          cell.setAttribute('contenteditable', 'true');
+          cell.dataset.key = d.key;
+          cell.dataset.section = sec.id;
+          cell.dataset.placeholder = '';
+          const ck = cellKey(d.key, sec.id);
+          cell.innerHTML = sf[ck] || '';
+          cell.addEventListener('click', (e) => e.stopPropagation());
+          cell.addEventListener('input', () => {
+            const html = cell.innerHTML;
+            if (!safeToPersist(cell, html)) return;
+            const cur = loadSecFree();
+            const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
+            if (!stripped) delete cur[ck]; else cur[ck] = html;
+            saveSecFree(cur);
+            flashSaved(cell);
+          });
+          row.appendChild(cell);
+        });
+        container.appendChild(row);
+
+        const divider = document.createElement('div');
+        divider.className = 'cal-sec-divider';
+        divider.title = 'Drag to resize this section for the whole week';
+        divider.addEventListener('click', (e) => e.stopPropagation());
+        divider.addEventListener('mousedown', (e) => startSectionResize(e, weekKey, sec.id, row));
+        container.appendChild(divider);
+      });
+
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'cal-sec-add';
+      add.textContent = '+ Add section';
+      add.addEventListener('click', (e) => { e.stopPropagation(); addSection(weekKey); });
+      container.appendChild(add);
+    }
+
     function renderMonthWeeks(view, weeksEl) {
       const today = new Date();
       const todayKey = ymd(today);
@@ -872,43 +1051,8 @@
         `;
         const grid = wkSection.querySelector('.cal-grid');
         grid.classList.add('cal-grid-week'); // signal: render as open columns
-        const FREE = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
-        days.forEach((d) => {
-          const col = document.createElement('div');
-          col.className = 'cwg-col' + (d.key === todayKey ? ' is-today' : '');
-          col.dataset.key = d.key;
-          col.innerHTML = `
-            <div class="cwg-col-head">
-              <span class="cwg-dow">${DOW[dowMon(d.dt)]}</span>
-              <span class="cwg-num">${d.dt.getDate()}</span>
-            </div>
-            <div class="cwg-col-free" contenteditable="true" data-key="${d.key}" data-placeholder="Type notes for the day…"></div>
-          `;
-          const free = col.querySelector('.cwg-col-free');
-          free.innerHTML = FREE[d.key] || '';
-          attachRevert(free, d.key);
-          attachBlurToggle(col, d.key);
-          attachHideToggle(col, d.key);
-          free.addEventListener('input', () => {
-            const html = free.innerHTML;
-            if (!safeToPersist(free, html)) return;
-            const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
-            noteEditBurst(d.key, cur[d.key]);
-            const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
-            if (!stripped) delete cur[d.key]; else cur[d.key] = html;
-            localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(cur));
-            mirrorDay(d.key, html, free);
-            flashSaved(free);
-          });
-          // Stop clicks on the column from bubbling up to the week-head toggle
-          col.addEventListener('click', (e) => e.stopPropagation());
-          // Double-click the day number to open the structured event modal
-          col.querySelector('.cwg-col-head').addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            openDay(d.key);
-          });
-          grid.appendChild(col);
-        });
+        // Days are now divided into shared, resizable horizontal sections.
+        renderSectionGrid(days, grid, todayKey);
         // Wire up the week-note popup trigger
         const NOTES = JSON.parse(localStorage.getItem(STORE_KEY + '::weekNotes') || '{}');
         const noteBtn = wkSection.querySelector('.cal-week-note-btn');

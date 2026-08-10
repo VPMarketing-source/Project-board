@@ -873,3 +873,87 @@
     outline-offset: 2px;
     border-radius: var(--cal-radius-sm);
   }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Shared day sections — horizontal bands that line up across all 7 days.
+   A left label column names each band; the 7 cells are per-day free text
+   with a fixed height that scrolls internally (so typing never grows the
+   page). A draggable divider under each band resizes it for the whole week. */
+.cal-sec-grid { --sec-label-w: 132px; display: block; }
+.cal-sec-headrow {
+    display: grid;
+    grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
+    border-bottom: 1px solid var(--cal-border);
+    background: #fff;
+  }
+.cal-sec-corner { border-right: 1px solid var(--cal-border); background: var(--cal-cream); }
+.cal-sec-dayhead { border-right: 1px solid var(--cal-border); }
+.cal-sec-dayhead:last-child { border-right: 0; }
+.cal-sec-row {
+    display: grid;
+    grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
+    border-bottom: 1px solid var(--cal-border);
+    overflow: hidden;
+  }
+.cal-sec-label {
+    position: relative;
+    border-right: 1px solid var(--cal-border);
+    background: var(--cal-cream);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+  }
+.cal-sec-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cal-ink);
+    outline: none;
+    cursor: text;
+    line-height: 1.3;
+  }
+.cal-sec-name:focus { background: #fffcef; border-radius: 4px; }
+.cal-sec-tools { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease; }
+.cal-sec-label:hover .cal-sec-tools { opacity: 1; }
+.cal-sec-tools button {
+    width: 20px; height: 20px;
+    border: 1px solid var(--cal-border);
+    background: #fff;
+    color: var(--cal-muted);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+.cal-sec-tools button:hover { color: var(--cal-blue); border-color: var(--cal-blue); }
+.cal-sec-del:hover { color: #c0392b; border-color: #c0392b; }
+.cal-sec-cell {
+    min-height: 0 !important;
+    height: 100%;
+    overflow-y: auto;
+    border-right: 1px solid var(--cal-border);
+    padding: 7px 9px;
+  }
+.cal-sec-cell:last-child { border-right: 0; }
+.cal-sec-divider {
+    height: 7px;
+    cursor: row-resize;
+    background: transparent;
+    transition: background 0.12s ease;
+  }
+.cal-sec-divider:hover { background: var(--cal-blue-soft); }
+.cal-sec-add {
+    display: inline-block;
+    margin: 8px 0 2px calc(var(--sec-label-w) + 9px);
+    padding: 6px 12px;
+    border: 1px dashed var(--cal-card-border);
+    background: #fff;
+    color: var(--cal-muted);
+    border-radius: var(--cal-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+  }
+.cal-sec-add:hover { color: var(--cal-blue); border-color: var(--cal-blue); }
