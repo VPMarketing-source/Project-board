@@ -23,7 +23,7 @@
   (function initFormatToolbar() {
     const COLORS = ['#11131a', '#2960ff', '#ef4444', '#16a34a', '#a86b14', '#6c6f7a'];
     // Light tints for full-width section backgrounds (Morning, Work, etc.).
-    const FILLS  = ['#fef9c3', '#dcfce7', '#dbeafe', '#fee2e2', '#ede9fe', '#ffedd5', '#39ff14'];
+    const FILLS  = ['#fef9c3', '#dcfce7', '#dbeafe', '#fee2e2', '#ede9fe', '#ffedd5', '#39ff14', '#ff4fd8'];
     const bar = document.createElement('div');
     bar.className = 'fmt-toolbar';
     bar.innerHTML = `
