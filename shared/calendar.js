@@ -852,9 +852,16 @@
       const all = loadAllSections();
       const arr = all[weekKey] || [];
       if (arr.length <= 1) return;                 // always keep one band
+      const sec = arr.find((s) => s.id === sid);
+      const name = (sec && sec.name && sec.name.trim()) || 'this section';
+      const sf = loadSecFree();
+      const hasContent = days.some((d) => sf[cellKey(d.key, sid)]);
+      const msg = 'Delete the "' + name + '" section?' +
+        (hasContent ? '\n\nIts text in every day of this week will be removed too. This can’t be undone.'
+                    : '\n\nThis can’t be undone.');
+      if (!window.confirm(msg)) return;
       all[weekKey] = arr.filter((s) => s.id !== sid);
       saveAllSections(all);
-      const sf = loadSecFree();
       days.forEach((d) => { delete sf[cellKey(d.key, sid)]; });
       saveSecFree(sf);
       render();
