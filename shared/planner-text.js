@@ -649,6 +649,55 @@
              !el.textContent.replace(/​/g, '').trim() &&
              !el.querySelector('input, img');
     }
+    // True when a fragment/node carries any real content (text, checkbox, image).
+    function hasContent(node) {
+      return !!node && (node.textContent.replace(/​/g, '').trim().length > 0 ||
+             (node.querySelector && node.querySelector('input, img')));
+    }
+    // A plain text line we can safely merge inline (no checkbox/list/highlight).
+    function isPlainLine(el) {
+      return el && el.nodeType === 1 && /^(DIV|P)$/.test(el.tagName) &&
+             !el.querySelector('input, .pc-todo, ul, ol') &&
+             !(el.classList && (el.classList.contains('pc-section') || el.classList.contains('pc-divider')));
+    }
+    // Split a paste fragment into an ordered list of block "lines": inline runs
+    // are wrapped in a <div>; real blocks (div/p/li, checkboxes, dividers,
+    // lists) are kept whole. Lets us merge the first line into the caret's line
+    // and drop the rest as siblings — never nesting a block inside a line.
+    function fragToBlocks(frag) {
+      const blocks = [];
+      let run = null;
+      const flush = () => { if (run) { blocks.push(run); run = null; } };
+      [...frag.childNodes].forEach((n) => {
+        const isBlock = n.nodeType === 1 && (
+          /^(DIV|P|LI|UL|OL|HR|BLOCKQUOTE)$/.test(n.tagName) ||
+          (n.classList && (n.classList.contains('pc-todo') || n.classList.contains('pc-divider') ||
+                           n.classList.contains('pc-section') || n.classList.contains('pc-drop')))
+        );
+        if (isBlock) { flush(); blocks.push(n); }
+        else { if (!run) run = document.createElement('div'); run.appendChild(n); }
+      });
+      flush();
+      return blocks;
+    }
+    function placeCaretAfter(node) {
+      const sel = window.getSelection();
+      if (!sel || !node || !node.parentNode) return;
+      const r = document.createRange();
+      r.setStartAfter(node);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    function placeCaretAtStart(node) {
+      const sel = window.getSelection();
+      if (!sel || !node) return;
+      const r = document.createRange();
+      r.selectNodeContents(node);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
 
     function insertFragmentAtCaret(frag) {
       const sel = window.getSelection();
@@ -660,14 +709,12 @@
         if (n && n.nodeType === 3) n = n.parentElement;
         return n && n.closest ? n.closest('[contenteditable="true"]') : null;
       })();
-      // The block line the caret sits in (a direct child of the editor). If
-      // it's blank, paste would leave it behind as an extra empty line, so
-      // remember it and drop it after inserting.
+      const sc = range.startContainer;
+
+      // The block line the caret sits in (a direct child of the editor).
       let caretLine = null;
       if (ce) {
-        const sc = range.startContainer;
         if (sc === ce) {
-          // Caret sits between blocks — take the block just before it.
           caretLine = ce.childNodes[range.startOffset - 1] || ce.childNodes[range.startOffset] || null;
           if (caretLine && caretLine.nodeType !== 1) caretLine = null;
         } else {
@@ -677,23 +724,81 @@
           if (b && b !== ce && b.parentElement === ce) caretLine = b;
         }
       }
-      const nodes = [...frag.childNodes];
-      const last = nodes[nodes.length - 1];
-      // If the caret is in a blank line, swap it for the pasted content
-      // (avoids leaving a stray empty line or nesting inside it). Otherwise
-      // insert at the caret, which keeps the position within a real line.
+
+      // Caret in a blank line → swap the blank line for the pasted content, so
+      // it never lingers as an extra empty line.
       if (caretLine && caretLine.parentNode && isBlankLine(caretLine)) {
+        const last = frag.lastChild;
         caretLine.replaceWith(frag);
-      } else {
-        range.insertNode(frag);
+        if (last) placeCaretAfter(last);
+        return;
       }
-      if (last) {
-        const r = document.createRange();
-        r.setStartAfter(last);
-        r.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(r);
+
+      // Caret inside a real line → merge the paste's first line into it and drop
+      // any further lines as siblings. This makes a one-line paste JOIN the
+      // current line (no new line) and a multi-line paste split cleanly, instead
+      // of nesting a block inside the line or appending a stray blank line.
+      if (ce && caretLine && sc !== ce) {
+        // Hold whatever sits after the caret on this line; re-attach at the end.
+        const afterRange = document.createRange();
+        afterRange.setStart(sc, range.startOffset);
+        afterRange.setEnd(caretLine, caretLine.childNodes.length);
+        const afterFrag = afterRange.extractContents();
+        const afterHas = hasContent(afterFrag);
+        const beforeHas = hasContent(caretLine);
+        const blocks = fragToBlocks(frag);
+        let anchor = caretLine;   // last line in the inserted stream
+        let caretNode = null;     // caret lands right after this node
+
+        if (beforeHas) {
+          blocks.forEach((blk, i) => {
+            if (i === 0 && isPlainLine(blk)) {
+              const kids = [...blk.childNodes];
+              while (blk.firstChild) caretLine.appendChild(blk.firstChild);
+              caretNode = kids.length ? kids[kids.length - 1] : caretLine;
+            } else {
+              anchor.after(blk); anchor = blk; caretNode = blk;
+            }
+          });
+        } else {
+          // Caret at the start of the line (its content was moved to afterFrag):
+          // insert the blocks ahead of the now-empty line.
+          let prev = null;
+          blocks.forEach((blk) => {
+            if (prev) prev.after(blk); else caretLine.before(blk);
+            prev = blk; anchor = blk; caretNode = blk;
+          });
+        }
+
+        if (afterHas) {
+          if (!beforeHas) {
+            // Original content flows back into the (now-empty) caret line.
+            caretLine.innerHTML = '';
+            caretLine.appendChild(afterFrag);
+            if (caretNode) placeCaretAfter(caretNode); else placeCaretAtStart(caretLine);
+          } else if (isPlainLine(anchor) || anchor === caretLine) {
+            const marker = document.createTextNode('');
+            anchor.appendChild(marker);
+            anchor.appendChild(afterFrag);
+            caretNode = marker;
+            placeCaretAfter(marker);
+          } else {
+            const d = document.createElement('div');
+            d.appendChild(afterFrag);
+            anchor.after(d);
+            if (caretNode) placeCaretAfter(caretNode);
+          }
+        } else {
+          if (!beforeHas && isBlankLine(caretLine)) caretLine.remove();  // no leftover empty line
+          if (caretNode) placeCaretAfter(caretNode);
+        }
+        return;
       }
+
+      // Caret between/after blocks at editor level → straight block insert.
+      const last = frag.lastChild;
+      range.insertNode(frag);
+      if (last) placeCaretAfter(last);
     }
 
     document.addEventListener('paste', (e) => {
