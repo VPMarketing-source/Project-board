@@ -106,25 +106,26 @@
   }
   [contenteditable="true"] ul { list-style: disc; }
   [contenteditable="true"] ol { list-style: decimal; }
-  [contenteditable="true"] li { margin: 0; line-height: 1.5; }
+  [contenteditable="true"] li { margin: 0; line-height: inherit; }
 
   /* Apple Notes-style checkbox todos inside contenteditable regions.
-     Deliberately kept on the SAME line height (1.5 → 21px at 14px) and with
-     ZERO vertical margin as a plain text line, so a day full of checkboxes
-     lines up row-for-row with a day of plain text — no cumulative drift. */
+     line-height inherits from the day cell and vertical margin is zero, so a
+     day full of checkboxes lines up row-for-row with a day of plain text — no
+     cumulative drift — whatever font/line-height that cell uses. */
   .pc-todo {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: 7px;
     margin: 0;
-    line-height: 1.5;
+    line-height: inherit;
   }
   .pc-todo-box {
     appearance: none;
     -webkit-appearance: none;
+    box-sizing: border-box;
     flex: 0 0 auto;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     margin-top: 2px;
     border: 2px solid #c7c2a9;
     border-radius: 50%;
@@ -142,7 +143,7 @@
     content: '';
     position: absolute;
     left: 3px; top: 0;
-    width: 4px; height: 9px;
+    width: 3px; height: 8px;
     border: solid #fff;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);

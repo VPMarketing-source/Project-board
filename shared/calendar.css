@@ -42,11 +42,11 @@
 .planner-cal {
     font-family: 'Poppins', system-ui, sans-serif;
     color: #11131a;
-    margin: 28px 0 36px;
+    margin: 20px 0 28px;
     background: #fff;
     border: 1px solid #ebe6d4;
     border-radius: 18px;
-    padding: 24px 28px 28px;
+    padding: 16px 16px 18px;
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
   }
 .cal-head {
@@ -107,7 +107,7 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 14px 18px;
+    padding: 10px 16px;
     background: transparent;
     border: 0;
     cursor: pointer;
@@ -198,13 +198,13 @@
     background: #fff;
   }
 .cal-week-body .cal-grid.cal-grid-week .cwg-col {
-    min-height: 240px;
+    min-height: 190px;
     border-right: 1px solid #efe9d3;
   }
 .cal-week-body .cal-grid.cal-grid-week .cwg-col:last-child { border-right: 0; }
-.cal-week-body .cal-grid.cal-grid-week .cwg-col-head { padding: 12px 10px 10px; }
-.cal-week-body .cal-grid.cal-grid-week .cwg-col-head .cwg-num { font-size: 18px; }
-.cal-week-body .cal-grid.cal-grid-week .cwg-col-free { padding: 10px 12px; min-height: 200px; }
+.cal-week-body .cal-grid.cal-grid-week .cwg-col-head { padding: 8px 8px 6px; }
+.cal-week-body .cal-grid.cal-grid-week .cwg-col-head .cwg-num { font-size: 16px; }
+.cal-week-body .cal-grid.cal-grid-week .cwg-col-free { padding: 7px 9px; min-height: 150px; }
 .cal-week-inline-notes,
   .cal-week-note-btn { /* keep inline-notes hidden if any leftover; new popup button below */ }
 .cal-week-inline-notes { display: none; }
@@ -700,22 +700,24 @@
 .cwg-col-head {
     background: #faf6e7;
     border-bottom: 1px solid #efe9d3;
-    padding: 14px 14px 12px;
+    padding: 9px 10px 7px;
     text-align: center;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
   }
 .cwg-col.is-today .cwg-col-head { background: #dde7ff; }
 .cwg-col-head .cwg-dow {
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1.2;
     font-weight: 700;
     color: #6c6f7a;
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
 .cwg-col-head .cwg-num {
-    font-size: 22px;
+    font-size: 18px;
+    line-height: 1.1;
     font-weight: 700;
     color: #11131a;
   }
@@ -730,9 +732,9 @@
 .cwg-col-chips:empty { padding: 0; }
 .cwg-col-free {
     flex: 1;
-    padding: 10px;
-    font-size: 14px;
-    line-height: 1.5;
+    padding: 8px;
+    font-size: 13px;
+    line-height: 1.35;
     color: #11131a;
     outline: none;
     min-height: 200px;
