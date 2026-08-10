@@ -880,7 +880,18 @@
    with a fixed height that scrolls internally (so typing never grows the
    page). A draggable divider under each band resizes it for the whole week. */
 .cal-sec-grid { --sec-label-w: 132px; display: block; }
+/* Freeze the weekday header so it stays visible while the week scrolls.
+   Sticky can only reach the page viewport if no ancestor clips it, so open
+   up overflow on the three wrappers that normally hide it — but only for
+   weeks that actually contain the sections grid, to leave the month view's
+   rounded corners untouched. */
+.cal-month:has(.cal-sec-grid),
+.cal-week:has(.cal-sec-grid),
+.cal-week-body:has(.cal-sec-grid) { overflow: visible; }
 .cal-sec-headrow {
+    position: sticky;
+    top: 0;
+    z-index: 30;
     display: grid;
     grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
     border-bottom: 1px solid var(--cal-border);
