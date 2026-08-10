@@ -21,6 +21,12 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     gap: 2px;
     font-family: inherit;
+    /* Never grow wider than the viewport — wrap to extra rows instead, so the
+       controls on the right (e.g. the section-fill swatches) can't get pushed
+       off-screen when there isn't room. */
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100vw - 20px);
   }
   .fmt-toolbar.is-open { display: inline-flex; }
   .fmt-toolbar button {
