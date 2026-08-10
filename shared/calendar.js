@@ -887,6 +887,62 @@
       document.addEventListener('mouseup', onUp);
     }
 
+    /* ── Per-cell background colour ─────────────────────────────────────
+       Right-click any day×section cell to fill it with a colour (or clear
+       it), for visually categorising blocks — work, exercise, meals, etc.
+       Stored per (day, section) under pc-ops:: so it syncs; applied as an
+       inline background so cell/section borders stay visible and the text
+       and checkboxes remain fully editable. */
+    const SECCOLOR_KEY = STORE_KEY + '::sectioncolor::v1';
+    function loadSecColors() { try { return JSON.parse(localStorage.getItem(SECCOLOR_KEY) || '{}') || {}; } catch (_) { return {}; } }
+    function saveSecColors(all) { try { localStorage.setItem(SECCOLOR_KEY, JSON.stringify(all)); } catch (_) {} }
+    const CELL_COLORS = ['#dbeafe', '#dcfce7', '#fef9c3', '#ffedd5', '#ede9fe', '#fce7f3', '#fee2e2', '#e2e8f0'];
+
+    let cellColorMenu = null;
+    function buildCellColorMenu() {
+      cellColorMenu = document.createElement('div');
+      cellColorMenu.className = 'cal-cell-colormenu';
+      cellColorMenu.innerHTML =
+        '<div class="ccm-swatches">' +
+          CELL_COLORS.map((c) => '<button type="button" class="ccm-swatch" data-color="' + c + '" style="background:' + c + '" title="' + c + '"></button>').join('') +
+        '</div>' +
+        '<button type="button" class="ccm-clear" data-color="">No colour</button>';
+      document.body.appendChild(cellColorMenu);
+      cellColorMenu.addEventListener('mousedown', (e) => e.preventDefault()); // keep cell selection
+      cellColorMenu.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-color]');
+        if (!btn) return;
+        applyCellColor(cellColorMenu.__ck, btn.getAttribute('data-color'));
+        closeCellColorMenu();
+      });
+    }
+    function applyCellColor(ck, color) {
+      const all = loadSecColors();
+      if (color) all[ck] = color; else delete all[ck];
+      saveSecColors(all);
+      document.querySelectorAll('.cal-sec-cell[data-key][data-section]').forEach((c) => {
+        if (c.dataset.key + '::' + c.dataset.section === ck) c.style.backgroundColor = color || '';
+      });
+    }
+    function openCellColorMenu(e, ck) {
+      if (!cellColorMenu) buildCellColorMenu();
+      cellColorMenu.__ck = ck;
+      cellColorMenu.classList.add('is-open');
+      cellColorMenu.style.left = (e.pageX) + 'px';
+      cellColorMenu.style.top  = (e.pageY) + 'px';
+      const r = cellColorMenu.getBoundingClientRect();
+      if (r.right  > window.innerWidth)  cellColorMenu.style.left = Math.max(6, e.pageX - r.width) + 'px';
+      if (r.bottom > window.innerHeight) cellColorMenu.style.top  = Math.max(6, e.pageY - r.height) + 'px';
+      const outside = (ev) => { if (!cellColorMenu.contains(ev.target)) closeCellColorMenu(); };
+      setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+      cellColorMenu.__outside = outside;
+    }
+    function closeCellColorMenu() {
+      if (!cellColorMenu) return;
+      cellColorMenu.classList.remove('is-open');
+      if (cellColorMenu.__outside) { document.removeEventListener('mousedown', cellColorMenu.__outside, true); cellColorMenu.__outside = null; }
+    }
+
     // Build the section grid for one week into `container` (the .cal-grid).
     function renderSectionGrid(days, container, todayKey) {
       const weekKey = days[0].key;
@@ -911,6 +967,7 @@
 
       const sections = getWeekSections(days);
       const sf = loadSecFree();
+      const CC = loadSecColors();
 
       sections.forEach((sec) => {
         const row = document.createElement('div');
@@ -950,7 +1007,13 @@
           cell.dataset.placeholder = '';
           const ck = cellKey(d.key, sec.id);
           cell.innerHTML = sf[ck] || '';
+          if (CC[ck]) cell.style.backgroundColor = CC[ck];
           cell.addEventListener('click', (e) => e.stopPropagation());
+          cell.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openCellColorMenu(e, ck);
+          });
           cell.addEventListener('input', () => {
             const html = cell.innerHTML;
             if (!safeToPersist(cell, html)) return;
