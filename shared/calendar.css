@@ -888,6 +888,10 @@
 .cal-month:has(.cal-sec-grid),
 .cal-week:has(.cal-sec-grid),
 .cal-week-body:has(.cal-sec-grid) { overflow: visible; }
+/* The week-tab layout gives .cal-week-body its own overflow:hidden via a
+   3-class selector, which out-specifies the rule above and re-traps the
+   sticky header. Match that selector's structure so the override wins. */
+.cal-weeks > .cal-week > .cal-week-body:has(.cal-sec-grid) { overflow: visible; }
 .cal-sec-headrow {
     position: sticky;
     top: 0;
