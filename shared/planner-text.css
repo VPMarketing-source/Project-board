@@ -155,6 +155,34 @@
     text-decoration-color: rgba(168, 107, 20, 0.5);
   }
 
+  /* Collapsible section headings ("dropdowns"). The heading keeps whatever
+     colour/size the user gave it; we only add the fold chevron and, when
+     folded, hide the following lines (handled from JS via .pc-fold-hidden). */
+  .pc-fold-head {
+    position: relative;
+    padding-left: 20px;
+  }
+  .pc-fold-toggle {
+    position: absolute;
+    left: -2px;
+    top: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: #6c6f7a;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+    transition: transform 140ms ease, background 120ms ease;
+  }
+  .pc-fold-toggle svg { width: 13px; height: 13px; }
+  .pc-fold-toggle:hover { background: rgba(17,19,26,0.06); color: #11131a; }
+  /* Folded: chevron points right and the section's lines are hidden. */
+  .pc-fold-head.is-folded .pc-fold-toggle { transform: rotate(-90deg); }
+  .pc-fold-hidden { display: none !important; }
+
   /* Annotated text — click to view/edit the attached note */
   .annotated {
     background: transparent;

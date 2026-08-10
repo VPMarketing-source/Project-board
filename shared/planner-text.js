@@ -48,6 +48,9 @@
       <button type="button" data-cmd="insertUnorderedList" title="Bullet list">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"></line><line x1="9" y1="12" x2="20" y2="12"></line><line x1="9" y1="18" x2="20" y2="18"></line><circle cx="4.5" cy="6" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="4.5" cy="12" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="4.5" cy="18" r="1.3" fill="currentColor" stroke="none"></circle></svg>
       </button>
+      <button type="button" data-action="dropdown" title="Collapsible section — click a heading to fold the lines under it">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
       <span class="fmt-sep"></span>
       <button type="button" data-action="font-smaller" title="Smaller text"><span style="font-size:9px;font-weight:700;letter-spacing:0">A−</span></button>
       <button type="button" data-action="font-larger"  title="Larger text"><span style="font-size:14px;font-weight:700;letter-spacing:0">A+</span></button>
@@ -152,6 +155,8 @@
         adjustFontSize(+1);
       } else if (btn.dataset.action === 'checkbox') {
         insertCheckbox();
+      } else if (btn.dataset.action === 'dropdown') {
+        makeDropdown();
       }
       // Re-fire whatever input listener the surrounding editor wired up so the
       // change is persisted to localStorage.
@@ -276,6 +281,88 @@
       }
       fireInputFor(ce);
     }
+
+    // ── Collapsible sections ("dropdowns") ──────────────────────────
+    // Turn the current line into a foldable heading. Clicking the heading's
+    // chevron hides every following sibling line until the next heading (or
+    // the end of the cell). The fold state is written into the content as
+    // plain classes, so it saves, syncs and reloads with no extra wiring.
+    const FOLD_CHEVRON =
+      '<span class="pc-fold-toggle" contenteditable="false" aria-label="Fold section">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
+      '</span>';
+
+    // The line block that directly contains the caret (a direct child of ce).
+    function currentLine(ce) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return null;
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentElement;
+      if (!node || !ce.contains(node) || node === ce) return null;
+      let line = node;
+      while (line.parentElement && line.parentElement !== ce) line = line.parentElement;
+      return line.parentElement === ce ? line : null;
+    }
+
+    function makeDropdown() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      let probe = sel.getRangeAt(0).commonAncestorContainer;
+      if (probe.nodeType === 3) probe = probe.parentElement;
+      const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
+      if (!ce) return;
+
+      // Already a heading? Toggle it back to a normal line.
+      const existing = probe.closest && probe.closest('.pc-fold-head');
+      if (existing && ce.contains(existing)) { unmakeDropdown(existing); fireInputFor(ce); return; }
+
+      const line = currentLine(ce);
+      if (!line) return;
+      // A checkbox todo isn't a good heading; leave those alone.
+      if (line.classList && line.classList.contains('pc-todo')) return;
+
+      line.classList.add('pc-fold-head');
+      if (!line.querySelector(':scope > .pc-fold-toggle')) {
+        line.insertAdjacentHTML('afterbegin', FOLD_CHEVRON);
+      }
+      fireInputFor(ce);
+    }
+
+    function unmakeDropdown(head) {
+      // Reveal anything it was hiding, then strip the heading markers.
+      setFolded(head, false);
+      const t = head.querySelector(':scope > .pc-fold-toggle');
+      if (t) t.remove();
+      head.classList.remove('pc-fold-head', 'is-folded');
+      if (!head.getAttribute('class')) head.removeAttribute('class');
+    }
+
+    // Fold (hide) or unfold every following sibling up to the next heading.
+    function setFolded(head, folded) {
+      head.classList.toggle('is-folded', folded);
+      let n = head.nextElementSibling;
+      while (n && !(n.classList && n.classList.contains('pc-fold-head'))) {
+        n.classList.toggle('pc-fold-hidden', folded);
+        if (!n.getAttribute('class')) n.removeAttribute('class');
+        n = n.nextElementSibling;
+      }
+    }
+
+    // Clicking a heading's chevron folds/unfolds it. Delegated so it works on
+    // every day cell, the pinned week, and after any re-render or reload.
+    // Capture phase: day columns stopPropagation on click (to shield the week
+    // toggle), which would otherwise swallow this during bubbling.
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest && e.target.closest('.pc-fold-toggle');
+      if (!toggle) return;
+      const head = toggle.closest('.pc-fold-head');
+      if (!head) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setFolded(head, !head.classList.contains('is-folded'));
+      fireInputFor(head);
+    }, true);
 
     // ── Annotation popup ────────────────────────────────────────────
     const pop = document.createElement('div');
