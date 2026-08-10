@@ -891,6 +891,10 @@
     function renderSectionGrid(days, container, todayKey) {
       const weekKey = days[0].key;
       container.innerHTML = '';
+      // Drop the old 7-column day-grid class: its CSS (display:grid, 7 cols)
+      // is more specific than .cal-sec-grid and would crush the section rows
+      // into 1/7 of the width. The section rows do their own column layout.
+      container.classList.remove('cal-grid-week');
       container.classList.add('cal-sec-grid');
 
       const headRow = document.createElement('div');
