@@ -14,7 +14,7 @@
     position: absolute;
     z-index: 600;
     display: none;
-    background: #11131a;
+    background: var(--cal-ink);
     color: #fff;
     border-radius: 8px;
     padding: 4px;
@@ -187,14 +187,14 @@
     width: 18px;
     height: 18px;
     margin-top: 0.05em;
-    color: #6c6f7a;
+    color: var(--cal-muted);
     cursor: pointer;
     border-radius: 4px;
     user-select: none;
     transition: transform 140ms ease, background 120ms ease;
   }
   .pc-drop-toggle svg { width: 13px; height: 13px; }
-  .pc-drop-toggle:hover { background: rgba(17,19,26,0.06); color: #11131a; }
+  .pc-drop-toggle:hover { background: rgba(17,19,26,0.06); color: var(--cal-ink); }
   .pc-drop-title { flex: 1 1 auto; min-width: 0; }
   .pc-drop-body {
     margin: 2px 0 2px 8px;
@@ -267,7 +267,7 @@
     cursor: pointer;
     transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
   }
-  .note-hint-edit { background: #2960ff; color: #fff; border-color: #2960ff; }
+  .note-hint-edit { background: var(--cal-blue); color: #fff; border-color: var(--cal-blue); }
   .note-hint-edit:hover { background: #1c47cc; }
   .note-hint-remove:hover { background: #faf3ee; border-color: rgba(184,96,64,0.3); color: #b86040; }
 
@@ -293,7 +293,7 @@
   .note-popup-title {
     font: 600 12px/1 'Poppins', sans-serif;
     letter-spacing: 0.02em;
-    color: #11131a;
+    color: var(--cal-ink);
   }
   .note-popup-kbd {
     font: 500 10px/1 'Poppins', sans-serif;
@@ -330,7 +330,7 @@
     cursor: pointer;
     transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
   }
-  .note-popup-save { background: #2960ff; color: #fff; border-color: #2960ff; }
+  .note-popup-save { background: var(--cal-blue); color: #fff; border-color: var(--cal-blue); }
   .note-popup-save:hover { background: #1c47cc; }
   .note-popup-remove { color: #b86040; border-color: rgba(184,96,64,0.25); }
   .note-popup-remove:hover { background: rgba(184,96,64,0.08); }
