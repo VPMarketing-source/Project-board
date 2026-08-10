@@ -601,6 +601,48 @@
       return frag;
     }
 
+    // Repair checkbox rows in a pasted fragment: copy/paste (especially from
+    // the planner itself) can nest a .pc-todo inside another todo's text,
+    // leave checkbox-less or empty todo rows, or bury the text in styled
+    // spans. Flatten every todo to a clean box + inline-only text on its own
+    // line. Idempotent, so it's safe to run on already-clean fragments too.
+    function normalizeTodos(root) {
+      // 1. Un-nest: lift any .pc-todo out of another todo, keeping their order,
+      //    as siblings right after the outer todo.
+      root.querySelectorAll('.pc-todo').forEach((todo) => {
+        if (!todo.parentNode) return;   // already moved/removed
+        let anchor = todo;
+        todo.querySelectorAll('.pc-todo').forEach((inner) => { anchor.after(inner); anchor = inner; });
+      });
+      // 2. Rebuild each todo: a checkbox + one inline text span. Drop empties
+      //    (paste artifacts); a "todo" with no checkbox becomes a plain line.
+      root.querySelectorAll('.pc-todo').forEach((todo) => {
+        const box = todo.querySelector('.pc-todo-box');
+        const textSpan = todo.querySelector('.pc-todo-text');
+        const inline = cleanInline(textSpan || todo).replace(/(<br>)+/g, ' ').trim();
+        if (!box) {                                   // not a real todo → plain line
+          if (!inline) { todo.remove(); return; }
+          const div = document.createElement('div');
+          div.innerHTML = inline;
+          todo.replaceWith(div);
+          return;
+        }
+        if (!inline) { todo.remove(); return; }        // empty checkbox row → drop
+        const checked = box.hasAttribute('checked') || todo.classList.contains('is-checked');
+        todo.className = 'pc-todo' + (checked ? ' is-checked' : '');
+        todo.removeAttribute('style');
+        const nb = document.createElement('input');
+        nb.type = 'checkbox'; nb.className = 'pc-todo-box'; nb.setAttribute('contenteditable', 'false');
+        if (checked) nb.setAttribute('checked', '');
+        const ns = document.createElement('span');
+        ns.className = 'pc-todo-text';
+        ns.innerHTML = inline;
+        todo.innerHTML = '';
+        todo.appendChild(nb);
+        todo.appendChild(ns);
+      });
+    }
+
     function insertFragmentAtCaret(frag) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -637,6 +679,7 @@
       }
       if (!frag || !frag.childNodes.length) frag = textToFragment(text);
       if (!frag.childNodes.length) return;
+      normalizeTodos(frag);                 // flatten any nested/malformed checkboxes
       e.preventDefault();
       insertFragmentAtCaret(frag);
       ce.dispatchEvent(new Event('input', { bubbles: true }));
