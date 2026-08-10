@@ -630,6 +630,16 @@
         const FREE = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
         clone.querySelectorAll('.cwg-col-free[data-key]').forEach((free) => {
           const key = free.dataset.key;
+          // Section-grid cells (day×section) are also .cwg-col-free[data-key],
+          // but they belong to ::sectionfree, not ::freeform. Wiring them like a
+          // day cell would reseed them with the wrong text, save to the wrong
+          // store, and smear content across the accordion via mirrorDay. The
+          // clone already holds the accordion's correct section content, so show
+          // it as a READ-ONLY preview here; edit sections in the Calendar tab.
+          if (free.classList.contains('cal-sec-cell')) {
+            free.setAttribute('contenteditable', 'false');
+            return;
+          }
           // Reseed in case the source DOM was stale.
           free.innerHTML = FREE[key] || '';
           attachRevert(free, key);
