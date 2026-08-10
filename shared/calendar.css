@@ -781,3 +781,64 @@
   .cwg-block-text { font-size: 11px; }
   .cwg-hour { font-size: 10px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Weeks as a horizontal tab row (saves vertical space)
+   The month's week sections normally stack vertically. Lay their headers
+   out left-to-right as compact tabs, and let the OPEN week's day grid drop
+   onto its own full-width row beneath the tabs. Pure layout: each .cal-week
+   keeps its head + body and its is-open toggle untouched; display:contents
+   lifts them into the .cal-weeks flex row so `order` can put heads first and
+   open bodies below. The pinned "This week" clone lives outside .cal-weeks,
+   so it is unaffected. Tabs wrap to a second row on narrow screens. */
+.cal-weeks {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+  }
+.cal-weeks > .cal-week { display: contents; }
+.cal-weeks > .cal-week > .cal-week-head {
+    order: 0;
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 240px;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid #efe9d3;
+    border-radius: 10px;
+    background: #faf6e7;
+  }
+.cal-weeks > .cal-week.has-today > .cal-week-head { border-color: #b8c8ff; background: #eef3ff; }
+.cal-weeks > .cal-week.is-open > .cal-week-head {
+    border-color: #2960ff;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #2960ff;
+  }
+/* Keep tabs compact: closed tabs show only "Week N + range"; the note, the
+   note button and the event count are hidden there and revealed on the
+   open/active week (which has room). Notes stay fully editable when open. */
+.cal-weeks > .cal-week > .cal-week-head .cal-week-count { display: none; }
+.cal-weeks > .cal-week:not(.is-open) > .cal-week-head .cal-week-inline-note,
+.cal-weeks > .cal-week:not(.is-open) > .cal-week-head .cal-week-note-btn { display: none; }
+/* On the open (active) tab, the note + button wrap onto their own line so
+   the tab stays the same narrow width as the others. */
+.cal-weeks > .cal-week.is-open > .cal-week-head { flex-wrap: wrap; }
+.cal-weeks > .cal-week.is-open > .cal-week-head .cal-week-inline-note {
+    order: 5;
+    flex: 1 1 100%;
+    max-width: 100%;
+    white-space: normal;
+    margin-top: 2px;
+  }
+.cal-weeks > .cal-week.is-open > .cal-week-head .cal-week-note-btn { order: 6; }
+/* The open week's grid takes a full-width row below all the tabs. */
+.cal-weeks > .cal-week > .cal-week-body {
+    order: 1;
+    flex: 0 0 100%;
+    width: 100%;
+    border: 1px solid #efe9d3;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 2px;
+  }
