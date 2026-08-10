@@ -54,6 +54,9 @@
       <button type="button" data-action="divider" title="Insert a divider line">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12"></line></svg>
       </button>
+      <button type="button" data-action="section" title="Mark as a Section — aligns this line to the same row across every day">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"></line><rect x="4" y="10" width="16" height="10" rx="1.5"></rect></svg>
+      </button>
       <span class="fmt-sep"></span>
       <button type="button" data-action="font-smaller" title="Smaller text"><span style="font-size:9px;font-weight:700;letter-spacing:0">A−</span></button>
       <button type="button" data-action="font-larger"  title="Larger text"><span style="font-size:14px;font-weight:700;letter-spacing:0">A+</span></button>
@@ -162,6 +165,8 @@
         makeDropdown();
       } else if (btn.dataset.action === 'divider') {
         insertDivider();
+      } else if (btn.dataset.action === 'section') {
+        toggleSectionAtCaret();
       }
       // Re-fire whatever input listener the surrounding editor wired up so the
       // change is persisted to localStorage.
@@ -341,6 +346,123 @@
       placeCaret(after, false);
       ce.dispatchEvent(new Event('input', { bubbles: true }));
     }
+
+    // ── Sections (cross-day alignment anchors) ──────────────────────────
+    // A "section" is an ordinary line block tagged with data-section-id. Lines
+    // sharing an id line up at the same vertical row across every day column
+    // (the height math lives in calendar.js). The id is the identity — the
+    // visible text can be renamed freely without breaking alignment. The tag
+    // is a data-* attribute + the pc-sec class, both of which survive save,
+    // reload and internal copy/paste, so no persistence changes are needed.
+    function slugifySectionId(s) {
+      return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    }
+    function existingSectionIds() {
+      const ids = new Set();
+      document.querySelectorAll('.cwg-col-free [data-section-id]').forEach((el) => {
+        const id = el.getAttribute('data-section-id');
+        if (id) ids.add(id);
+      });
+      return Array.from(ids).sort();
+    }
+    function markSection(line, id) {
+      if (!line || !id) return;
+      line.setAttribute('data-section-id', id);
+      line.classList.add('pc-sec');
+      const ce = line.closest('[contenteditable="true"]');
+      if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function unmarkSection(line) {
+      if (!line) return;
+      line.removeAttribute('data-section-id');
+      line.classList.remove('pc-sec');
+      if (!line.getAttribute('class')) line.removeAttribute('class');
+      const ce = line.closest('[contenteditable="true"]');
+      if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Toolbar entry point: toggle the current line's section state. Marked →
+    // unmark. Unmarked → open the picker so you can reuse an existing id or
+    // create a new one.
+    function toggleSectionAtCaret() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      let probe = sel.getRangeAt(0).commonAncestorContainer;
+      if (probe.nodeType === 3) probe = probe.parentElement;
+      const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
+      if (!ce) return;
+      const line = currentLine(ce);
+      if (!line) return;
+      if (line.hasAttribute('data-section-id')) { unmarkSection(line); return; }
+      openSectionPicker(line);
+    }
+
+    // Small floating menu: existing section ids as one-click chips, plus a
+    // field to name a new one. Anchored under the line being marked.
+    let secPicker = null;
+    function closeSectionPicker() { if (secPicker) { secPicker.remove(); secPicker = null; } }
+    function openSectionPicker(line) {
+      closeSectionPicker();
+      const ids = existingSectionIds();
+      secPicker = document.createElement('div');
+      secPicker.className = 'pc-sec-picker';
+      secPicker.innerHTML =
+        '<div class="pc-sec-picker-title">Make this a Section</div>' +
+        (ids.length
+          ? '<div class="pc-sec-picker-chips">' +
+              ids.map((id) => '<button type="button" class="pc-sec-chip" data-id="' + id + '">' + id + '</button>').join('') +
+            '</div>'
+          : '') +
+        '<div class="pc-sec-picker-new">' +
+          '<input type="text" class="pc-sec-input" placeholder="New section id (e.g. lunch)…" />' +
+          '<button type="button" class="pc-sec-add">Add</button>' +
+        '</div>';
+      document.body.appendChild(secPicker);
+      const rect = line.getBoundingClientRect();
+      secPicker.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+      secPicker.style.left = Math.max(8, Math.min(rect.left + window.scrollX,
+        window.scrollX + document.documentElement.clientWidth - secPicker.offsetWidth - 8)) + 'px';
+
+      const commit = (raw) => {
+        const id = slugifySectionId(raw);
+        if (!id) return;
+        closeSectionPicker();
+        markSection(line, id);
+      };
+      secPicker.querySelectorAll('.pc-sec-chip').forEach((b) => {
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => commit(b.dataset.id));
+      });
+      const input = secPicker.querySelector('.pc-sec-input');
+      const addBtn = secPicker.querySelector('.pc-sec-add');
+      addBtn.addEventListener('mousedown', (e) => e.preventDefault());
+      addBtn.addEventListener('click', () => commit(input.value));
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(input.value); }
+        if (e.key === 'Escape') { e.preventDefault(); closeSectionPicker(); }
+      });
+      setTimeout(() => input.focus(), 0);
+    }
+    // Close the picker on any outside click.
+    document.addEventListener('mousedown', (e) => {
+      if (secPicker && !secPicker.contains(e.target)) closeSectionPicker();
+    }, true);
+
+    // Minimal "/section" command: typing "/section " or "/section <id> " at the
+    // start of a line converts that line into a section. The trailing space is
+    // the commit, so partial typing never triggers.
+    document.addEventListener('input', (e) => {
+      const ce = e.target && e.target.closest && e.target.closest('.cwg-col-free[contenteditable="true"]');
+      if (!ce) return;
+      const line = currentLine(ce);
+      if (!line || line.hasAttribute('data-section-id')) return;
+      const m = /^\/section(?:\s+([a-z0-9][a-z0-9-]*))?\s$/i.exec(line.textContent || '');
+      if (!m) return;
+      line.textContent = '';                        // strip the command text
+      placeCaret(line, false);
+      if (m[1]) markSection(line, slugifySectionId(m[1]));
+      else { ce.dispatchEvent(new Event('input', { bubbles: true })); openSectionPicker(line); }
+    });
 
     // Wrap the current line into a toggle: its text becomes the title, and a
     // fresh indented body opens below with the caret ready for the first item.
@@ -578,7 +700,7 @@
     // than flatten it (which turns a checklist into inline struck-through
     // text), keep its structure and just scrub the junk the browser adds on
     // copy: style attributes, foreign classes, ids, meta/script nodes.
-    const KEEP_CLASS = /^(pc-todo|pc-todo-box|pc-todo-text|pc-section|pc-drop|pc-drop-head|pc-drop-title|pc-drop-body|pc-drop-toggle|pc-divider|pc-fold-head|annotated|is-checked|is-collapsed|is-folded|pc-fold-hidden)$/;
+    const KEEP_CLASS = /^(pc-todo|pc-todo-box|pc-todo-text|pc-section|pc-sec|pc-drop|pc-drop-head|pc-drop-title|pc-drop-body|pc-drop-toggle|pc-divider|pc-fold-head|annotated|is-checked|is-collapsed|is-folded|pc-fold-hidden)$/;
     function looksInternal(html) {
       return /\bpc-(todo|section|drop|divider|fold)\b|cwg-col-free|pc-todo-box/.test(html || '');
     }

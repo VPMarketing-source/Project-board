@@ -81,6 +81,56 @@
   /* Keep the checkbox aligned nicely now that the todo margin is gone. */
   [contenteditable="true"] .pc-todo.pc-section { padding-top: 0; padding-bottom: 0; }
 
+  /* Section anchor: a line tagged with data-section-id that aligns to the same
+     row across every day. A slim left accent marks it; the actual cross-day
+     spacing is added by calendar.js via an external stylesheet (never inline),
+     so it stays out of the saved content. */
+  [contenteditable="true"] .pc-sec { position: relative; }
+  [contenteditable="true"] .pc-sec::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 2px;
+    background: #2960ff;
+    opacity: 0.65;
+    pointer-events: none;
+  }
+
+  /* Section id picker — reuse an existing section or name a new one. */
+  .pc-sec-picker {
+    position: absolute;
+    z-index: 810;
+    width: 240px;
+    background: #fff;
+    border: 1px solid rgba(17,19,26,0.12);
+    border-radius: 10px;
+    box-shadow: 0 14px 36px rgba(17,19,26,0.16);
+    padding: 10px;
+    font-family: 'Poppins', -apple-system, sans-serif;
+    color: #2b2f3a;
+  }
+  .pc-sec-picker-title { font: 600 12px/1 'Poppins', sans-serif; margin-bottom: 8px; color: #11131a; }
+  .pc-sec-picker-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .pc-sec-chip {
+    appearance: none; border: 1px solid rgba(41,96,255,0.25);
+    background: #eef3ff; color: #2960ff; border-radius: 999px;
+    padding: 3px 9px; font: 600 11px/1 'Poppins', sans-serif; cursor: pointer;
+  }
+  .pc-sec-chip:hover { background: #2960ff; color: #fff; }
+  .pc-sec-picker-new { display: flex; gap: 6px; }
+  .pc-sec-input {
+    flex: 1; min-width: 0; border: 1px solid rgba(17,19,26,0.12); border-radius: 6px;
+    padding: 6px 8px; font: 400 12px/1.2 'Poppins', sans-serif; outline: none;
+  }
+  .pc-sec-input:focus { border-color: rgba(41,96,255,0.4); }
+  .pc-sec-add {
+    appearance: none; border: 1px solid #2960ff; background: #2960ff; color: #fff;
+    border-radius: 6px; padding: 6px 12px; font: 600 12px/1 'Poppins', sans-serif; cursor: pointer;
+  }
+
   /* Divider line — a thin horizontal rule between blocks of content. */
   .pc-divider {
     height: 0;

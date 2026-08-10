@@ -308,6 +308,116 @@
       document.querySelectorAll('.cal-grid, #cal-week-grid').forEach(applyColLayout);
     }
 
+    /* ── Cross-day Section alignment ───────────────────────────────────────
+       Lines tagged data-section-id (see planner-text.js) act as shared rows:
+       a given section starts at the same Y in every day column of a week. The
+       Y is driven by content height — for each section the tallest day sets
+       the pace and shorter days get blank space above it; content is never
+       compressed. All spacing is written to ONE external <style> keyed by
+       grid-id + date + section-id, so the editable content (and everything
+       that saves/syncs it) is never touched. */
+    let alignStyleEl = null, alignRaf = 0, alignSelfWrite = false, gridIdSeq = 0, lastAlignCss = '';
+    function ensureAlignStyle() {
+      if (!alignStyleEl) {
+        alignStyleEl = document.getElementById('pc-section-align') || document.createElement('style');
+        alignStyleEl.id = 'pc-section-align';
+        if (!alignStyleEl.parentNode) document.head.appendChild(alignStyleEl);
+      }
+      return alignStyleEl;
+    }
+    const cssEsc = (s) => String(s).replace(/["\\]/g, '\\$&');
+    // Merge each day's section-id sequence into one global order (longest day
+    // as backbone; new ids appended in first-seen order). Routines are usually
+    // identical across days, so this is stable in practice.
+    function mergeSectionOrder(seqs) {
+      const order = [], seen = new Set();
+      seqs.slice().sort((a, b) => b.length - a.length).forEach((seq) => {
+        seq.forEach((id) => { if (!seen.has(id)) { seen.add(id); order.push(id); } });
+      });
+      return order;
+    }
+    function alignAllSections() {
+      const styleEl = ensureAlignStyle();
+      alignSelfWrite = true;
+      styleEl.textContent = '';                    // measure natural (unspaced) layout
+      const rules = [];
+      document.querySelectorAll('.cal-grid.cal-grid-week').forEach((grid) => {
+        if (!grid.dataset.gridId) grid.dataset.gridId = 'g' + (++gridIdSeq);
+        const gid = grid.dataset.gridId;
+        const perDay = [];
+        grid.querySelectorAll(':scope > .cwg-col').forEach((col) => {
+          const free = col.querySelector('.cwg-col-free');
+          if (!free) return;
+          const freeTop = free.getBoundingClientRect().top;
+          const secs = Array.from(free.querySelectorAll(':scope > [data-section-id]')).map((el) => ({
+            id: el.getAttribute('data-section-id'),
+            top: el.getBoundingClientRect().top - freeTop,
+          }));
+          perDay.push({ key: col.dataset.key, secs });
+        });
+        const order = mergeSectionOrder(perDay.map((d) => d.secs.map((s) => s.id)));
+        if (!order.length) return;
+        const topOf = (secs, id) => { const f = secs.find((s) => s.id === id); return f ? f.top : null; };
+
+        // Shared target Y per section: first = max natural top; each next =
+        // previous shared Y + tallest natural segment between the two.
+        const sharedTop = {};
+        order.forEach((id, idx) => {
+          if (idx === 0) {
+            let mx = 0;
+            perDay.forEach((d) => { const t = topOf(d.secs, id); if (t != null) mx = Math.max(mx, t); });
+            sharedTop[id] = mx;
+          } else {
+            const prev = order[idx - 1];
+            let mxSeg = 0;
+            perDay.forEach((d) => {
+              const a = topOf(d.secs, prev), b = topOf(d.secs, id);
+              if (a != null && b != null && b >= a) mxSeg = Math.max(mxSeg, b - a);
+            });
+            sharedTop[id] = (sharedTop[prev] || 0) + mxSeg;
+          }
+        });
+
+        // Per day: reserve = target − where the section would sit given prior
+        // aligned anchors + this day's own (uncompressed) content.
+        perDay.forEach((d) => {
+          let prevPresent = null;
+          order.forEach((id) => {
+            const t = topOf(d.secs, id);
+            if (t == null) return;
+            const posBeforePad = prevPresent == null
+              ? t
+              : sharedTop[prevPresent] + (t - topOf(d.secs, prevPresent));
+            const pad = Math.max(0, Math.round(sharedTop[id] - posBeforePad));
+            if (pad > 0) {
+              rules.push('.cal-grid-week[data-grid-id="' + gid + '"] .cwg-col[data-key="' +
+                cssEsc(d.key) + '"] .cwg-col-free > [data-section-id="' + cssEsc(id) +
+                '"]{margin-top:' + pad + 'px !important;}');
+            }
+            prevPresent = id;
+          });
+        });
+      });
+      const css = rules.join('\n');
+      if (css !== lastAlignCss) { styleEl.textContent = css; lastAlignCss = css; }
+      requestAnimationFrame(() => { alignSelfWrite = false; });
+    }
+    function scheduleAlign() {
+      if (alignRaf) return;
+      alignRaf = requestAnimationFrame(() => { alignRaf = 0; alignAllSections(); });
+    }
+    let alignRO = null;
+    function observeEditablesForAlign() {
+      if (!('ResizeObserver' in window)) return;
+      if (!alignRO) alignRO = new ResizeObserver(() => { if (!alignSelfWrite) scheduleAlign(); });
+      alignRO.disconnect();
+      document.querySelectorAll('.cwg-col-free').forEach((el) => alignRO.observe(el));
+    }
+    // Re-measure when day content changes (debounced to one frame).
+    document.addEventListener('input', (e) => {
+      if (e.target && e.target.closest && e.target.closest('.cwg-col-free')) scheduleAlign();
+    });
+
     function setColHidden(key, on) {
       const all = loadHiddenCols();
       if (on) all[key] = 1; else delete all[key];
@@ -585,8 +695,10 @@
       renderMonth();
       renderCurrentWeekPinned();
       applyAllColLayouts();
+      observeEditablesForAlign();
+      scheduleAlign();
       // The pinned "This week" clone is built one frame later; re-apply then.
-      requestAnimationFrame(applyAllColLayouts);
+      requestAnimationFrame(() => { applyAllColLayouts(); observeEditablesForAlign(); scheduleAlign(); });
     }
 
     // Render a copy of the current week's row (Mon–Sun grid + inline note +
