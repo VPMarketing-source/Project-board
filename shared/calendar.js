@@ -68,16 +68,31 @@
       if (window.__plannerReloadingForSync) return;
       if (window.__planner && window.__planner.unpaintedRemote) return;
       try {
-        // Day-column freeform text (source week only — not the clone)
+        // Day-column freeform text (source week only — not the clone).
+        // Section-grid cells are also .cwg-col-free[data-key]; they belong to
+        // ::sectionfree (flushed below), NOT ::freeform — skip them here or
+        // they'd overwrite the whole day with one section's text.
         const freeCur = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
         document.querySelectorAll('.cwg-col-free[data-key]').forEach((el) => {
           if (el.closest('.is-pinned-clone')) return;
+          if (el.classList.contains('cal-sec-cell')) return;
           const html = el.innerHTML;
           const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
           if (!stripped) return;
           freeCur[el.dataset.key] = html;
         });
         localStorage.setItem(STORE_KEY + '::freeform', JSON.stringify(freeCur));
+
+        // Section-grid cells (day×section) → their own store, same safety rules.
+        const secFreeCur = JSON.parse(localStorage.getItem(STORE_KEY + '::sectionfree::v1') || '{}');
+        document.querySelectorAll('.cal-sec-cell[data-key][data-section]').forEach((el) => {
+          if (el.closest('.is-pinned-clone')) return;
+          const html = el.innerHTML;
+          const stripped = html.replace(/<br\s*\/?>/gi, '').trim();
+          if (!stripped) return;
+          secFreeCur[el.dataset.key + '::' + el.dataset.section] = html;
+        });
+        localStorage.setItem(STORE_KEY + '::sectionfree::v1', JSON.stringify(secFreeCur));
 
         // Inline week notes
         const inlineCur = JSON.parse(localStorage.getItem(STORE_KEY + '::weekInline') || '{}');
@@ -879,19 +894,30 @@
     function startSectionResize(e, weekKey, sid, row) {
       e.preventDefault();
       e.stopPropagation();
-      const startY = e.clientY;
+      // Works for both mouse and touch (drag-resize on tablets/phones too).
+      const pointY = (ev) => (ev.touches && ev.touches[0]) ? ev.touches[0].clientY
+                           : (ev.changedTouches && ev.changedTouches[0]) ? ev.changedTouches[0].clientY
+                           : ev.clientY;
+      const startY = pointY(e);
       const startH = row.getBoundingClientRect().height;
-      const onMove = (ev) => { row.style.minHeight = Math.max(48, startH + (ev.clientY - startY)) + 'px'; };
+      const onMove = (ev) => {
+        if (ev.cancelable) ev.preventDefault();
+        row.style.minHeight = Math.max(48, startH + (pointY(ev) - startY)) + 'px';
+      };
       const onUp = (ev) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        const h = Math.round(Math.max(48, startH + (ev.clientY - startY)));
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+        const h = Math.round(Math.max(48, startH + (pointY(ev) - startY)));
         const all = loadAllSections();
         const s = (all[weekKey] || []).find((x) => x.id === sid);
         if (s) { s.height = h; saveAllSections(all); }
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onUp);
     }
 
     /* ── Per-cell background colour ─────────────────────────────────────
@@ -1058,6 +1084,7 @@
         divider.title = 'Drag to resize this section for the whole week';
         divider.addEventListener('click', (e) => e.stopPropagation());
         divider.addEventListener('mousedown', (e) => startSectionResize(e, weekKey, sec.id, row));
+        divider.addEventListener('touchstart', (e) => startSectionResize(e, weekKey, sec.id, row), { passive: false });
         container.appendChild(divider);
       });
 
