@@ -68,13 +68,13 @@
      coloured lines merge into one solid continuous band. A little vertical
      padding gives breathing room that stays inside the colour. */
   [contenteditable="true"] .pc-section {
-    padding: 2px 6px;
+    padding: 0 6px;
     box-sizing: border-box;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
   }
   /* Keep the checkbox aligned nicely now that the todo margin is gone. */
-  [contenteditable="true"] .pc-todo.pc-section { padding-top: 2px; padding-bottom: 2px; }
+  [contenteditable="true"] .pc-todo.pc-section { padding-top: 0; padding-bottom: 0; }
 
   /* Stuck-block remover: hover any pasted <table> inside an editable to
      get a small ✕ button that yanks the whole block in one click. */
@@ -97,31 +97,35 @@
   }
   .pc-block-del:hover { background: #9a4a30; transform: scale(1.08); }
 
-  /* Bullet/ordered lists inside any contenteditable region */
+  /* Bullet/ordered lists inside any contenteditable region. Zero vertical
+     margin keeps every list row on the same 1.5 rhythm as plain lines. */
   [contenteditable="true"] ul,
   [contenteditable="true"] ol {
-    margin: 4px 0;
+    margin: 0;
     padding-left: 20px;
   }
   [contenteditable="true"] ul { list-style: disc; }
   [contenteditable="true"] ol { list-style: decimal; }
-  [contenteditable="true"] li { margin: 2px 0; }
+  [contenteditable="true"] li { margin: 0; line-height: 1.5; }
 
-  /* Apple Notes-style checkbox todos inside contenteditable regions */
+  /* Apple Notes-style checkbox todos inside contenteditable regions.
+     Deliberately kept on the SAME line height (1.5 → 21px at 14px) and with
+     ZERO vertical margin as a plain text line, so a day full of checkboxes
+     lines up row-for-row with a day of plain text — no cumulative drift. */
   .pc-todo {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin: 4px 0;
-    line-height: 1.55;
+    margin: 0;
+    line-height: 1.5;
   }
   .pc-todo-box {
     appearance: none;
     -webkit-appearance: none;
     flex: 0 0 auto;
-    width: 18px;
-    height: 18px;
-    margin-top: 3px;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
     border: 2px solid #c7c2a9;
     border-radius: 50%;
     background: #fff;
@@ -137,8 +141,8 @@
   .pc-todo-box:checked::after {
     content: '';
     position: absolute;
-    left: 4px; top: 0;
-    width: 5px; height: 10px;
+    left: 3px; top: 0;
+    width: 4px; height: 9px;
     border: solid #fff;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
