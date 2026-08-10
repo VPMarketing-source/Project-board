@@ -854,7 +854,17 @@
       const all = loadAllSections();
       if (!all[weekKey] || !all[weekKey].length) {
         const sid = genSectionId();
-        all[weekKey] = [{ id: sid, name: 'Section 1', height: 220 }];
+        const def = [{ id: sid, name: 'Section 1', height: 220 }];
+        // Do NOT create-and-persist a default section before sync has seeded
+        // the real ones from the server. On a blank/incognito load the store
+        // is momentarily empty; persisting a fresh default here would push an
+        // empty section set over the top and orphan all the real content (the
+        // ids wouldn't match). Render a transient default this frame; when the
+        // seed lands with the real sections it repaints correctly.
+        const P = window.__planner;
+        const seeded = !(P && typeof P.canPersist === 'function') || P.canPersist();
+        if (!seeded) return def;
+        all[weekKey] = def;
         saveAllSections(all);
         const FREE = JSON.parse(localStorage.getItem(STORE_KEY + '::freeform') || '{}');
         const sf = loadSecFree();
