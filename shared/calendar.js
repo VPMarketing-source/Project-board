@@ -919,7 +919,7 @@
       cellColorMenu.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-color]');
         if (!btn) return;
-        applyCellColor(cellColorMenu.__ck, btn.getAttribute('data-color'));
+        if (cellColorMenu.__apply) cellColorMenu.__apply(btn.getAttribute('data-color'));
         closeCellColorMenu();
       });
     }
@@ -931,9 +931,20 @@
         if (c.dataset.key + '::' + c.dataset.section === ck) c.style.backgroundColor = color || '';
       });
     }
-    function openCellColorMenu(e, ck) {
+    // Colour a section's label, stored on the section itself (per week).
+    function applySectionColor(weekKey, sid, color) {
+      const all = loadAllSections();
+      const s = (all[weekKey] || []).find((x) => x.id === sid);
+      if (!s) return;
+      if (color) s.color = color; else delete s.color;
+      saveAllSections(all);
+      document.querySelectorAll('.cal-sec-label[data-section="' + sid + '"]').forEach((l) => {
+        l.style.backgroundColor = color || '';
+      });
+    }
+    function openCellColorMenu(e, applyFn) {
       if (!cellColorMenu) buildCellColorMenu();
-      cellColorMenu.__ck = ck;
+      cellColorMenu.__apply = applyFn;
       cellColorMenu.classList.add('is-open');
       cellColorMenu.style.left = (e.pageX) + 'px';
       cellColorMenu.style.top  = (e.pageY) + 'px';
@@ -984,6 +995,8 @@
 
         const label = document.createElement('div');
         label.className = 'cal-sec-label';
+        label.dataset.section = sec.id;
+        if (sec.color) label.style.backgroundColor = sec.color;
         label.innerHTML =
           '<span class="cal-sec-name" contenteditable="true" spellcheck="false"></span>' +
           '<div class="cal-sec-tools">' +
@@ -991,6 +1004,12 @@
             '<button type="button" class="cal-sec-down" title="Move section down" aria-label="Move down">↓</button>' +
             '<button type="button" class="cal-sec-del" title="Delete section" aria-label="Delete">×</button>' +
           '</div>';
+        // Right-click the label to colour the section title.
+        label.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCellColorMenu(e, (color) => applySectionColor(weekKey, sec.id, color));
+        });
         const nameEl = label.querySelector('.cal-sec-name');
         nameEl.textContent = sec.name;
         nameEl.addEventListener('click', (e) => e.stopPropagation());
@@ -1019,7 +1038,7 @@
           cell.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            openCellColorMenu(e, ck);
+            openCellColorMenu(e, (color) => applyCellColor(ck, color));
           });
           cell.addEventListener('input', () => {
             const html = cell.innerHTML;
