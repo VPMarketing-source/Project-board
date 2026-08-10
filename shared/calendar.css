@@ -893,7 +893,7 @@
     display: grid;
     grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
     border-bottom: 1px solid var(--cal-border);
-    overflow: hidden;
+    align-items: stretch;
   }
 .cal-sec-label {
     position: relative;
@@ -930,9 +930,11 @@
 .cal-sec-tools button:hover { color: var(--cal-blue); border-color: var(--cal-blue); }
 .cal-sec-del:hover { color: #c0392b; border-color: #c0392b; }
 .cal-sec-cell {
+    /* Grow with content (Word-like) — no fixed height, no inner scrollbar.
+       The row's min-height sets the floor; align-items:stretch on the grid
+       row makes every day match the tallest day's content, so the whole
+       band stays aligned and only the page scrolls. */
     min-height: 0 !important;
-    height: 100%;
-    overflow-y: auto;
     border-right: 1px solid var(--cal-border);
     padding: 7px 9px;
   }

@@ -874,7 +874,7 @@
       e.stopPropagation();
       const startY = e.clientY;
       const startH = row.getBoundingClientRect().height;
-      const onMove = (ev) => { row.style.height = Math.max(48, startH + (ev.clientY - startY)) + 'px'; };
+      const onMove = (ev) => { row.style.minHeight = Math.max(48, startH + (ev.clientY - startY)) + 'px'; };
       const onUp = (ev) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
@@ -915,7 +915,7 @@
       sections.forEach((sec) => {
         const row = document.createElement('div');
         row.className = 'cal-sec-row';
-        row.style.height = sec.height + 'px';
+        row.style.minHeight = sec.height + 'px';
         row.dataset.section = sec.id;
 
         const label = document.createElement('div');
