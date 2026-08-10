@@ -155,33 +155,40 @@
     text-decoration-color: rgba(168, 107, 20, 0.5);
   }
 
-  /* Collapsible section headings ("dropdowns"). The heading keeps whatever
-     colour/size the user gave it; we only add the fold chevron and, when
-     folded, hide the following lines (handled from JS via .pc-fold-hidden). */
-  .pc-fold-head {
-    position: relative;
-    padding-left: 20px;
+  /* Collapsible section ("dropdown"), ClickUp-style: a toggle heading with a
+     chevron and an indented body you type items into. Collapsing hides only
+     that body. The heading keeps whatever colour/size the user gave it. */
+  .pc-drop { margin: 4px 0; }
+  .pc-drop-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
   }
-  .pc-fold-toggle {
-    position: absolute;
-    left: -2px;
-    top: 0.05em;
+  .pc-drop-toggle {
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 18px;
     height: 18px;
+    margin-top: 0.05em;
     color: #6c6f7a;
     cursor: pointer;
     border-radius: 4px;
     user-select: none;
     transition: transform 140ms ease, background 120ms ease;
   }
-  .pc-fold-toggle svg { width: 13px; height: 13px; }
-  .pc-fold-toggle:hover { background: rgba(17,19,26,0.06); color: #11131a; }
-  /* Folded: chevron points right and the section's lines are hidden. */
-  .pc-fold-head.is-folded .pc-fold-toggle { transform: rotate(-90deg); }
-  .pc-fold-hidden { display: none !important; }
+  .pc-drop-toggle svg { width: 13px; height: 13px; }
+  .pc-drop-toggle:hover { background: rgba(17,19,26,0.06); color: #11131a; }
+  .pc-drop-title { flex: 1 1 auto; min-width: 0; }
+  .pc-drop-body {
+    margin: 2px 0 2px 8px;
+    padding-left: 12px;
+    border-left: 2px solid rgba(17,19,26,0.1);
+  }
+  /* Collapsed: chevron points right and the body is hidden. */
+  .pc-drop.is-collapsed .pc-drop-toggle { transform: rotate(-90deg); }
+  .pc-drop.is-collapsed .pc-drop-body { display: none; }
 
   /* Annotated text — click to view/edit the attached note */
   .annotated {

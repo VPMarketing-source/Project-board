@@ -282,13 +282,13 @@
       fireInputFor(ce);
     }
 
-    // ── Collapsible sections ("dropdowns") ──────────────────────────
-    // Turn the current line into a foldable heading. Clicking the heading's
-    // chevron hides every following sibling line until the next heading (or
-    // the end of the cell). The fold state is written into the content as
-    // plain classes, so it saves, syncs and reloads with no extra wiring.
-    const FOLD_CHEVRON =
-      '<span class="pc-fold-toggle" contenteditable="false" aria-label="Fold section">' +
+    // ── Collapsible sections ("dropdowns"), ClickUp-style ───────────
+    // The text you select becomes a toggle heading; below it sits an
+    // indented body you type items into. Clicking the chevron collapses or
+    // expands that body. The whole structure is plain HTML written into the
+    // cell, so it saves, syncs and reloads through the normal content path.
+    const DROP_CHEVRON =
+      '<span class="pc-drop-toggle" contenteditable="false" aria-label="Collapse section">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
       'stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>' +
       '</span>';
@@ -305,6 +305,17 @@
       return line.parentElement === ce ? line : null;
     }
 
+    function placeCaret(el, atEnd) {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      r.collapse(!atEnd);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+
+    // Wrap the current line into a toggle: its text becomes the title, and a
+    // fresh indented body opens below with the caret ready for the first item.
     function makeDropdown() {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -313,55 +324,93 @@
       const ce = probe && probe.closest && probe.closest('[contenteditable="true"]');
       if (!ce) return;
 
-      // Already a heading? Toggle it back to a normal line.
-      const existing = probe.closest && probe.closest('.pc-fold-head');
+      // Already inside a toggle? Turn it back into plain lines.
+      const existing = probe.closest && probe.closest('.pc-drop');
       if (existing && ce.contains(existing)) { unmakeDropdown(existing); fireInputFor(ce); return; }
 
       const line = currentLine(ce);
       if (!line) return;
-      // A checkbox todo isn't a good heading; leave those alone.
-      if (line.classList && line.classList.contains('pc-todo')) return;
+      if (line.classList && line.classList.contains('pc-todo')) return; // not a heading
 
-      line.classList.add('pc-fold-head');
-      if (!line.querySelector(':scope > .pc-fold-toggle')) {
-        line.insertAdjacentHTML('afterbegin', FOLD_CHEVRON);
-      }
+      const titleHtml = (line.innerHTML || '').trim() || '​';
+      const drop = document.createElement('div');
+      drop.className = 'pc-drop';
+      drop.innerHTML =
+        '<div class="pc-drop-head">' + DROP_CHEVRON +
+          '<span class="pc-drop-title">' + titleHtml + '</span>' +
+        '</div>' +
+        '<div class="pc-drop-body"><div><br></div></div>';
+      line.replaceWith(drop);
+
+      placeCaret(drop.querySelector('.pc-drop-body > div'), false);
       fireInputFor(ce);
     }
 
-    function unmakeDropdown(head) {
-      // Reveal anything it was hiding, then strip the heading markers.
-      setFolded(head, false);
-      const t = head.querySelector(':scope > .pc-fold-toggle');
-      if (t) t.remove();
-      head.classList.remove('pc-fold-head', 'is-folded');
-      if (!head.getAttribute('class')) head.removeAttribute('class');
+    // Unwrap a toggle: title becomes a line, body items follow as lines.
+    function unmakeDropdown(drop) {
+      const title = drop.querySelector('.pc-drop-title');
+      const body  = drop.querySelector('.pc-drop-body');
+      const frag  = document.createDocumentFragment();
+      const titleLine = document.createElement('div');
+      titleLine.innerHTML = title ? title.innerHTML : '';
+      frag.appendChild(titleLine);
+      if (body) while (body.firstChild) frag.appendChild(body.firstChild);
+      const first = frag.firstChild;
+      drop.replaceWith(frag);
+      if (first) placeCaret(first, true);
     }
 
-    // Fold (hide) or unfold every following sibling up to the next heading.
-    function setFolded(head, folded) {
-      head.classList.toggle('is-folded', folded);
-      let n = head.nextElementSibling;
-      while (n && !(n.classList && n.classList.contains('pc-fold-head'))) {
-        n.classList.toggle('pc-fold-hidden', folded);
-        if (!n.getAttribute('class')) n.removeAttribute('class');
-        n = n.nextElementSibling;
-      }
+    function setCollapsed(drop, collapsed) {
+      drop.classList.toggle('is-collapsed', collapsed);
     }
 
-    // Clicking a heading's chevron folds/unfolds it. Delegated so it works on
-    // every day cell, the pinned week, and after any re-render or reload.
-    // Capture phase: day columns stopPropagation on click (to shield the week
-    // toggle), which would otherwise swallow this during bubbling.
+    // Clicking the chevron collapses/expands its toggle. Capture phase: day
+    // columns stopPropagation on click (to shield the week toggle), which
+    // would otherwise swallow this during bubbling.
     document.addEventListener('click', (e) => {
-      const toggle = e.target.closest && e.target.closest('.pc-fold-toggle');
+      const toggle = e.target.closest && e.target.closest('.pc-drop-toggle');
       if (!toggle) return;
-      const head = toggle.closest('.pc-fold-head');
-      if (!head) return;
+      const drop = toggle.closest('.pc-drop');
+      if (!drop) return;
       e.preventDefault();
       e.stopPropagation();
-      setFolded(head, !head.classList.contains('is-folded'));
-      fireInputFor(head);
+      setCollapsed(drop, !drop.classList.contains('is-collapsed'));
+      fireInputFor(drop);
+    }, true);
+
+    // Enter inside a toggle body keeps new lines in the body; Enter on an
+    // empty last line exits the toggle to a normal line beneath it.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      let node = sel.anchorNode;
+      if (node && node.nodeType === 3) node = node.parentNode;
+      const body = node && node.closest && node.closest('.pc-drop-body');
+      if (!body) return;
+      // The line within the body that holds the caret.
+      let line = node;
+      while (line && line.parentElement !== body) line = line.parentElement;
+      if (!line || line.parentElement !== body) return;
+
+      e.preventDefault();
+      const drop = body.closest('.pc-drop');
+      const ce = drop.closest('[contenteditable="true"]');
+      const empty = !(line.textContent || '').replace(/​/g, '').trim();
+      if (empty && line === body.lastElementChild) {
+        // Exit the toggle: drop the empty line, add a plain line after it.
+        line.remove();
+        const out = document.createElement('div');
+        out.innerHTML = '<br>';
+        drop.after(out);
+        placeCaret(out, false);
+      } else {
+        const nl = document.createElement('div');
+        nl.innerHTML = '<br>';
+        line.after(nl);
+        placeCaret(nl, false);
+      }
+      if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
     }, true);
 
     // ── Annotation popup ────────────────────────────────────────────
