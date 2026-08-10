@@ -574,6 +574,33 @@
       return frag;
     }
 
+    // Content copied FROM the planner is already in our own format. Rather
+    // than flatten it (which turns a checklist into inline struck-through
+    // text), keep its structure and just scrub the junk the browser adds on
+    // copy: style attributes, foreign classes, ids, meta/script nodes.
+    const KEEP_CLASS = /^(pc-todo|pc-todo-box|pc-todo-text|pc-section|pc-drop|pc-drop-head|pc-drop-title|pc-drop-body|pc-drop-toggle|pc-divider|pc-fold-head|annotated|is-checked|is-collapsed|is-folded|pc-fold-hidden)$/;
+    function looksInternal(html) {
+      return /\bpc-(todo|section|drop|divider|fold)\b|cwg-col-free|pc-todo-box/.test(html || '');
+    }
+    function lightCleanInternal(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('meta, script, style, link').forEach((n) => n.remove());
+      doc.body.querySelectorAll('*').forEach((n) => {
+        n.removeAttribute('style');
+        n.removeAttribute('id');
+        if (n.getAttribute('class')) {
+          const kept = n.getAttribute('class').split(/\s+/).filter((c) => KEEP_CLASS.test(c));
+          if (kept.length) n.setAttribute('class', kept.join(' '));
+          else n.removeAttribute('class');
+        }
+        // A pasted checkbox must stay an inert box, not an editable field.
+        if (n.tagName === 'INPUT') n.setAttribute('contenteditable', 'false');
+      });
+      const frag = document.createDocumentFragment();
+      while (doc.body.firstChild) frag.appendChild(doc.body.firstChild);
+      return frag;
+    }
+
     function insertFragmentAtCaret(frag) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -602,7 +629,12 @@
       if (!cd) return;
       const html = cd.getData('text/html');
       const text = cd.getData('text/plain');
-      let frag = (html && html.trim()) ? sanitizeHtmlToFragment(html) : null;
+      let frag = null;
+      if (html && html.trim()) {
+        // Preserve the planner's own format on internal copy/paste; only
+        // flatten genuinely foreign rich HTML (ClickUp, web, Apple).
+        frag = looksInternal(html) ? lightCleanInternal(html) : sanitizeHtmlToFragment(html);
+      }
       if (!frag || !frag.childNodes.length) frag = textToFragment(text);
       if (!frag.childNodes.length) return;
       e.preventDefault();
