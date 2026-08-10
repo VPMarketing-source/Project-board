@@ -432,6 +432,156 @@
       if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
     }, true);
 
+    // ── Paste sanitiser ─────────────────────────────────────────────
+    // Rich HTML pasted from ClickUp / Apple / the web arrives wrapped in
+    // deeply nested <div style="letter-spacing…"> / <span> junk with
+    // Apple-interchange markers, which bloats a cell to thousands of px.
+    // Convert any pasted HTML into our own flat structure — plain <div>
+    // lines, <b>/<i>/<s>/<u> inline, clean <ul>/<ol>, and .pc-todo for
+    // checklists — dropping every class, style, wrapper and empty spacer.
+    // Plain-text paste falls back to one <div> per line.
+    const PASTE_INLINE = { B:'b', STRONG:'b', I:'i', EM:'i', S:'s', STRIKE:'s', DEL:'s', U:'u' };
+    const PASTE_BLOCK = new Set(['DIV','P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','SECTION','ARTICLE','HEADER','FOOTER','MAIN','ASIDE','TR','FIGURE','FIGCAPTION','PRE','TABLE','TBODY','THEAD']);
+
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Serialise a node's subtree to sanitised INLINE html: text + <br> and
+    // only b/i/s/u emphasis; every wrapper/style/class is dropped.
+    function cleanInline(node) {
+      if (node.nodeType === 3) return escHtml(node.nodeValue).replace(/ /g, ' ');
+      if (node.nodeType !== 1) return '';
+      if (node.tagName === 'BR') return '<br>';
+      if (node.tagName === 'INPUT' || node.tagName === 'IMG') return '';
+      let inner = '';
+      node.childNodes.forEach((c) => { inner += cleanInline(c); });
+      const map = PASTE_INLINE[node.tagName];
+      return map ? '<' + map + '>' + inner + '</' + map + '>' : inner;
+    }
+    function checkboxIn(el) {
+      return el.querySelector ? el.querySelector('input[type="checkbox"]') : null;
+    }
+    function inlineExcludingLists(el) {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('ul,ol,input').forEach((n) => n.remove());
+      return cleanInline(clone).replace(/(<br>)+$/,'').trim();
+    }
+
+    function sanitizeHtmlToFragment(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const frag = document.createDocumentFragment();
+      let line = null;
+      const ensure = () => (line || (line = document.createElement('div'), frag.appendChild(line), line));
+      const addInline = (h) => { if (h) ensure().insertAdjacentHTML('beforeend', h); };
+      function endLine() {
+        if (line && !line.textContent.replace(/​/g,'').trim() && !line.querySelector('input,img')) {
+          frag.removeChild(line);
+        }
+        line = null;
+      }
+      function addTodo(el, checked) {
+        endLine();
+        const todo = document.createElement('div');
+        todo.className = 'pc-todo' + (checked ? ' is-checked' : '');
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.className = 'pc-todo-box'; box.setAttribute('contenteditable', 'false');
+        if (checked) box.setAttribute('checked', '');
+        const span = document.createElement('span');
+        span.className = 'pc-todo-text';
+        span.innerHTML = inlineExcludingLists(el) || '​';
+        todo.appendChild(box); todo.appendChild(span);
+        frag.appendChild(todo);
+      }
+      function addList(listEl, ordered) {
+        const items = [...listEl.children].filter((c) => c.tagName === 'LI');
+        if (!items.length) return;
+        // A checklist (every item has a checkbox) becomes .pc-todo rows.
+        if (items.every((li) => checkboxIn(li))) {
+          items.forEach((li) => addTodo(li, !!(checkboxIn(li) || {}).checked || checkboxIn(li).hasAttribute('checked')));
+          return;
+        }
+        endLine();
+        const list = document.createElement(ordered ? 'ol' : 'ul');
+        items.forEach((li) => {
+          const liEl = document.createElement('li');
+          liEl.innerHTML = inlineExcludingLists(li) || '​';
+          list.appendChild(liEl);
+          const nested = li.querySelector(':scope > ul, :scope > ol');
+          if (nested) { frag.appendChild(list.cloneNode(false)); addList(nested, nested.tagName === 'OL'); }
+        });
+        frag.appendChild(list);
+      }
+      function walk(node) {
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === 3) { addInline(escHtml(child.nodeValue).replace(/ /g,' ')); return; }
+          if (child.nodeType !== 1) return;
+          const tag = child.tagName;
+          if (tag === 'BR') { addInline('<br>'); return; }
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'INPUT' || tag === 'IMG') return;
+          if (PASTE_INLINE[tag]) { addInline(cleanInline(child)); return; }
+          if (tag === 'UL' || tag === 'OL') { addList(child, tag === 'OL'); return; }
+          if (PASTE_BLOCK.has(tag)) {
+            const box = checkboxIn(child);
+            if (box && !child.querySelector('ul,ol')) { addTodo(child, box.checked || box.hasAttribute('checked')); return; }
+            endLine();
+            walk(child);
+            endLine();
+            return;
+          }
+          // span / font / a / label / other wrappers → descend transparently
+          walk(child);
+        });
+      }
+      walk(doc.body);
+      endLine();
+      return frag;
+    }
+
+    function textToFragment(text) {
+      const frag = document.createDocumentFragment();
+      String(text || '').replace(/\r\n?/g, '\n').split('\n').forEach((ln) => {
+        const div = document.createElement('div');
+        if (ln.trim()) div.textContent = ln; else div.innerHTML = '<br>';
+        frag.appendChild(div);
+      });
+      return frag;
+    }
+
+    function insertFragmentAtCaret(frag) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      range.deleteContents();                 // paste replaces any selection
+      const nodes = [...frag.childNodes];
+      const last = nodes[nodes.length - 1];
+      range.insertNode(frag);
+      if (last) {
+        const r = document.createRange();
+        r.setStartAfter(last);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
+
+    document.addEventListener('paste', (e) => {
+      const ce = e.target && e.target.closest && e.target.closest('[contenteditable="true"]');
+      if (!ce) return;
+      // Only planner text fields — never the money spreadsheet or other widgets.
+      const isPlanner = ce.classList.contains('cwg-col-free') || ce.closest('.cwg-col-free') ||
+                        ce.classList.contains('cal-week-inline-note') || ce.classList.contains('key-dates-body');
+      if (!isPlanner) return;
+      const cd = e.clipboardData || window.clipboardData;
+      if (!cd) return;
+      const html = cd.getData('text/html');
+      const text = cd.getData('text/plain');
+      let frag = (html && html.trim()) ? sanitizeHtmlToFragment(html) : null;
+      if (!frag || !frag.childNodes.length) frag = textToFragment(text);
+      if (!frag.childNodes.length) return;
+      e.preventDefault();
+      insertFragmentAtCaret(frag);
+      ce.dispatchEvent(new Event('input', { bubbles: true }));
+    }, true);
+
     // ── Annotation popup ────────────────────────────────────────────
     const pop = document.createElement('div');
     pop.className = 'note-popup';

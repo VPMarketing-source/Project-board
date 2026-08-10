@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Paste sanitiser — tests</title>
+<!--
+  Browser tests for the planner paste sanitiser in shared/planner-text.js.
+  They synthesise real ClipboardData and dispatch a paste event at an
+  ISOLATED contenteditable (never a real planner cell), then assert on the
+  cleaned DOM. Run: http://localhost:5555/tests/paste.test.html
+  Results render on the page and on window.__TEST_RESULTS.
+-->
+<link rel="stylesheet" href="../shared/planner-text.css" />
+<style>
+  body { font-family: system-ui, sans-serif; padding: 24px; max-width: 960px; color: #11131a; }
+  #editor { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-height: 40px; font-size: 13px; }
+  #summary { font-weight: 700; margin: 12px 0; }
+  #out { background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px; white-space: pre-wrap; font: 12px/1.6 ui-monospace, monospace; }
+  .ok { color: #3fb950; } .bad { color: #f85149; }
+</style>
+</head>
+<body>
+  <h1>Paste sanitiser — tests</h1>
+  <div id="editor" class="cwg-col-free" contenteditable="true"></div>
+  <div id="summary"></div>
+  <pre id="out"></pre>
+
+  <script src="../shared/planner-text.js?v=paste1"></script>
+  <script>
+    (function () {
+      const results = [];
+      const assert = (name, fn, detail) => {
+        let pass = false, err = '';
+        try { pass = !!(typeof fn === 'function' ? fn() : fn); } catch (e) { err = ' [' + e.message + ']'; }
+        results.push({ name, pass, detail: (detail || '') + err });
+      };
+      const ed = document.getElementById('editor');
+
+      // Build a ClipboardData-bearing paste event and dispatch it at the caret.
+      function paste(html, text) {
+        ed.focus();
+        // caret at end
+        const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        const dt = new DataTransfer();
+        if (html != null) dt.setData('text/html', html);
+        if (text != null) dt.setData('text/plain', text);
+        const e = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt });
+        ed.dispatchEvent(e);
+      }
+      const norm = (h) => h.replace(/​/g, '').replace(/\s+/g, ' ').trim();
+
+      // 1. ClickUp/Apple nested junk collapses to clean lines
+      ed.innerHTML = '';
+      paste('<div style="letter-spacing:-0.075px"><div style="letter-spacing:-0.075px"><br class="Apple-interchange-newline"></div><div style="letter-spacing:-0.075px"><span style="color:#111">Follow up with all leads</span></div><div style="letter-spacing:-0.075px">Runs</div></div>', 'Follow up with all leads\nRuns');
+      assert('nested ClickUp/Apple junk → 2 clean lines',
+        () => ed.querySelectorAll('div').length === 2 && /Follow up with all leads/.test(ed.textContent) && /Runs/.test(ed.textContent), norm(ed.innerHTML).slice(0,120));
+      assert('all inline styles/classes stripped', () => !/style=|class="(?!pc-)/.test(ed.innerHTML) && !/letter-spacing|Apple-interchange/.test(ed.innerHTML));
+
+      // 2. Headings + paragraphs
+      ed.innerHTML = '';
+      paste('<h1>Plan</h1><p>First para</p><p>Second para</p>', 'Plan\nFirst para\nSecond para');
+      assert('headings + paragraphs → 3 lines', () => ed.querySelectorAll('div').length === 3);
+      assert('heading text preserved', () => /Plan/.test(ed.textContent) && /Second para/.test(ed.textContent));
+
+      // 3. Bullet list
+      ed.innerHTML = '';
+      paste('<ul><li>Apples</li><li>Bananas</li></ul>', 'Apples\nBananas');
+      assert('bullet list → clean <ul><li>', () => ed.querySelector('ul') && ed.querySelectorAll('ul > li').length === 2);
+      assert('list items keep text', () => /Apples/.test(ed.querySelector('ul').textContent) && /Bananas/.test(ed.querySelector('ul').textContent));
+
+      // 4. Checklist → pc-todo
+      ed.innerHTML = '';
+      paste('<ul><li><input type="checkbox" checked>Done item</li><li><input type="checkbox">Open item</li></ul>', 'Done item\nOpen item');
+      assert('checklist → two .pc-todo rows', () => ed.querySelectorAll('.pc-todo').length === 2 && ed.querySelectorAll('.pc-todo-box').length === 2);
+      assert('checked state carried onto first item', () => ed.querySelectorAll('.pc-todo')[0].querySelector('.pc-todo-box').hasAttribute('checked'));
+      assert('checkbox text preserved', () => /Done item/.test(ed.textContent) && /Open item/.test(ed.textContent));
+
+      // 5. Bold + strikethrough preserved, mapped to b/s
+      ed.innerHTML = '';
+      paste('<p><strong>Bold</strong> and <del>gone</del> and <em>lean</em></p>', 'Bold and gone and lean');
+      assert('bold → <b>', () => !!ed.querySelector('b') && /Bold/.test(ed.querySelector('b').textContent));
+      assert('strikethrough → <s>', () => !!ed.querySelector('s') && /gone/.test(ed.querySelector('s').textContent));
+      assert('italic → <i>', () => !!ed.querySelector('i'));
+
+      // 6. Multiline PLAIN text (no html) → one div per line
+      ed.innerHTML = '';
+      paste(null, 'Line A\nLine B\nLine C');
+      assert('plain multiline text → 3 divs', () => ed.querySelectorAll('div').length === 3 && /Line A/.test(ed.textContent) && /Line C/.test(ed.textContent));
+
+      // 7. Unsupported / external markup stripped, text kept, no layout risk
+      ed.innerHTML = '';
+      paste('<table><tr><td><font color="red"><b>Cell</b></font></td></tr></table><script>bad()<\/script><img src="x">', 'Cell');
+      assert('unsupported markup: text kept, no table/font/script/img left',
+        () => /Cell/.test(ed.textContent) && !ed.querySelector('table,font,script,img'));
+      assert('bold inside unsupported wrapper survives as <b>', () => !!ed.querySelector('b'));
+
+      // 8. Paste INTO an existing paragraph at the caret
+      ed.innerHTML = '<div id="p">Before after</div>';
+      (function () {
+        const node = document.getElementById('p').firstChild;
+        const r = document.createRange(); r.setStart(node, 7); r.collapse(true); // after "Before "
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      })();
+      const dt8 = new DataTransfer(); dt8.setData('text/html', '<div>INSERTED</div>'); dt8.setData('text/plain', 'INSERTED');
+      ed.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt8 }));
+      assert('paste at caret keeps surrounding text and inserts content',
+        () => /Before/.test(ed.textContent) && /INSERTED/.test(ed.textContent) && /after/.test(ed.textContent));
+
+      // 9. Paste OVER a selection replaces it
+      ed.innerHTML = '<div id="q">keep REMOVE keep</div>';
+      (function () {
+        const node = document.getElementById('q').firstChild;
+        const r = document.createRange(); r.setStart(node, 5); r.setEnd(node, 11); // select "REMOVE"
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      })();
+      const dt9 = new DataTransfer(); dt9.setData('text/html', 'NEW'); dt9.setData('text/plain', 'NEW');
+      ed.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt9 }));
+      assert('paste over selection replaces the selected text', () => /NEW/.test(ed.textContent) && !/REMOVE/.test(ed.textContent) && /keep/.test(ed.textContent));
+
+      // 10. No runaway height: sanitised junk is a handful of lines, not thousands of px
+      ed.innerHTML = '';
+      let deep = 'text'; for (let i = 0; i < 20; i++) deep = '<div style="letter-spacing:-0.075px">' + deep + '<br class="Apple-interchange-newline"></div>';
+      paste(deep, 'text');
+      assert('deeply nested junk does not explode line count', () => ed.querySelectorAll('div').length <= 2, 'divs=' + ed.querySelectorAll('div').length);
+
+      // Report
+      ed.innerHTML = '';
+      const passed = results.filter((r) => r.pass).length;
+      document.getElementById('out').innerHTML = results.map((r) =>
+        '<span class="' + (r.pass ? 'ok' : 'bad') + '">' + (r.pass ? 'PASS' : 'FAIL') + '</span>  ' + r.name + (r.detail ? '  ::  ' + r.detail : '')
+      ).join('\n');
+      const sum = document.getElementById('summary');
+      sum.textContent = passed + ' / ' + results.length + ' passed';
+      sum.className = passed === results.length ? 'ok' : 'bad';
+      window.__TEST_RESULTS = { passed, total: results.length, allPassed: passed === results.length, results };
+    })();
+  </script>
+</body>
+</html>
