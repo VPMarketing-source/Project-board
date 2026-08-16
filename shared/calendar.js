@@ -116,6 +116,9 @@
     // The pinned Week-tab row can wrap to a different height when the window
     // resizes; re-measure so the weekday header keeps pinning just beneath it.
     window.addEventListener('resize', () => syncStickyOffsets());
+    // The nav + announcement bar mount after the calendar renders, so recompute
+    // the chrome offset once everything is in place.
+    window.addEventListener('load', () => syncStickyOffsets());
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flushAllEditables();
     });
@@ -608,12 +611,43 @@
       syncStickyOffsets();
     }
 
-    // Measure the pinned Week-tab row's height into --cal-tabs-h so the sticky
-    // weekday header can pin just beneath the tabs (and the backdrop behind the
-    // tabs is the right height) instead of overlapping them. Runs after layout.
+    // Keep the sticky Week-tab row (and the weekday header beneath it) pinned in
+    // the right place by measuring two things into CSS vars:
+    //   --cal-sticky-top : height of the fixed chrome above the calendar (the
+    //                      fixed top nav + the sticky announcement bar), so the
+    //                      tabs pin BELOW it instead of hiding behind it.
+    //   --cal-tabs-h     : the tab strip's own height, so the weekday header
+    //                      pins just under the tabs rather than overlapping.
+    // The announcement bar mounts after the calendar and can collapse/expand,
+    // so we observe it and recompute whenever its size changes.
+    let _chromeObserved = false;
+    function ensureChromeObserver() {
+      if (_chromeObserved || typeof ResizeObserver === 'undefined') return;
+      const ann = document.getElementById('pc-announce');
+      const nav = document.getElementById('pc-nav');
+      if (!ann && !nav) return;                 // nothing mounted yet
+      const ro = new ResizeObserver(() => syncStickyOffsets());
+      if (ann) ro.observe(ann);
+      if (nav) ro.observe(nav);
+      _chromeObserved = true;
+    }
     function syncStickyOffsets() {
       requestAnimationFrame(() => {
         try {
+          ensureChromeObserver();
+          // Fixed/sticky chrome stacked above the calendar. The announcement
+          // sits below the nav, so its bottom edge is the full chrome height;
+          // fall back to the fixed nav alone if there's no announcement.
+          let stackTop = 0;
+          const ann = document.getElementById('pc-announce');
+          const nav = document.getElementById('pc-nav');
+          if (ann) stackTop = ann.getBoundingClientRect().bottom;
+          else if (nav && getComputedStyle(nav).position === 'fixed') stackTop = nav.getBoundingClientRect().height;
+          stackTop = Math.round(stackTop);
+          if (stackTop >= 0 && stackTop < 600) {
+            document.documentElement.style.setProperty('--cal-sticky-top', stackTop + 'px');
+          }
+
           const host = calendarHost();
           if (!host) return;
           const weeks = host.querySelector('.cal-month.is-open .cal-weeks') ||

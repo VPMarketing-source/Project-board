@@ -901,7 +901,7 @@
    pins just beneath it instead of overlapping. */
 .cal-weeks > .cal-week > .cal-week-head {
     position: sticky;
-    top: 0;
+    top: var(--cal-sticky-top, 0px);
     z-index: 42;
   }
 .cal-weeks::before {
@@ -911,14 +911,14 @@
     height: var(--cal-tabs-h, 44px);
     margin-bottom: calc(-1 * var(--cal-tabs-h, 44px));
     position: sticky;
-    top: 0;
+    top: var(--cal-sticky-top, 0px);
     background: var(--cal-cream);
     z-index: 41;
     pointer-events: none;
   }
 .cal-sec-headrow {
     position: sticky;
-    top: var(--cal-tabs-h, 44px);
+    top: calc(var(--cal-sticky-top, 0px) + var(--cal-tabs-h, 44px));
     z-index: 30;
     display: grid;
     grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
