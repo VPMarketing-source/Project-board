@@ -109,8 +109,9 @@
         position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
         display: flex; align-items: center; gap: 14px;
         padding: 8px 16px;
-        background: rgba(255,255,255,0.85);
-        backdrop-filter: saturate(140%) blur(10px);
+        /* Fully opaque so nothing shows through when content scrolls behind
+           the fixed bar (a translucent nav read as a "gap" over the planner). */
+        background: #ffffff;
         border-bottom: 1px solid rgba(17,19,26,0.06);
         font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #2b2f3a;
