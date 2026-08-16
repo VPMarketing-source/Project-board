@@ -113,6 +113,9 @@
     }
     window.addEventListener('beforeunload', flushAllEditables);
     window.addEventListener('pagehide', flushAllEditables);
+    // The pinned Week-tab row can wrap to a different height when the window
+    // resizes; re-measure so the weekday header keeps pinning just beneath it.
+    window.addEventListener('resize', () => syncStickyOffsets());
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flushAllEditables();
     });
@@ -602,6 +605,36 @@
       applyAllColLayouts();
       // The pinned "This week" clone is built one frame later; re-apply then.
       requestAnimationFrame(applyAllColLayouts);
+      syncStickyOffsets();
+    }
+
+    // Measure the pinned Week-tab row's height into --cal-tabs-h so the sticky
+    // weekday header can pin just beneath the tabs (and the backdrop behind the
+    // tabs is the right height) instead of overlapping them. Runs after layout.
+    function syncStickyOffsets() {
+      requestAnimationFrame(() => {
+        try {
+          const host = calendarHost();
+          if (!host) return;
+          const weeks = host.querySelector('.cal-month.is-open .cal-weeks') ||
+                        host.querySelector('.cal-weeks');
+          let h = 0;
+          if (weeks) {
+            const head = weeks.querySelector('.cal-week > .cal-week-head');
+            const body = weeks.querySelector('.cal-week.is-open > .cal-week-body');
+            if (head && body) {
+              // Full tab-strip height (covers wrapped rows + the row's margin).
+              h = body.getBoundingClientRect().top - weeks.getBoundingClientRect().top;
+            } else if (head) {
+              h = head.getBoundingClientRect().height;
+            }
+          }
+          h = Math.round(h);
+          if (h > 0 && h < 400) {
+            document.documentElement.style.setProperty('--cal-tabs-h', h + 'px');
+          }
+        } catch (e) { /* measurement is best-effort */ }
+      });
     }
 
     // Render a copy of the current week's row (Mon–Sun grid + inline note +
@@ -816,6 +849,7 @@
           const cur = JSON.parse(localStorage.getItem(STORE_KEY + '::monthsOpen') || '{}');
           cur[monthKey] = nowOpen;
           localStorage.setItem(STORE_KEY + '::monthsOpen', JSON.stringify(cur));
+          syncStickyOffsets();
         });
 
         monthsEl.appendChild(section);
@@ -1219,6 +1253,7 @@
           if (!cur[monthOpenKey]) cur[monthOpenKey] = {};
           cur[monthOpenKey][w] = nowOpen;
           localStorage.setItem(STORE_KEY + '::open', JSON.stringify(cur));
+          syncStickyOffsets();
         };
         wkSection.querySelector('.cal-week-chev').addEventListener('click', toggle);
         wkSection.querySelector('.cal-week-label').addEventListener('click', toggle);

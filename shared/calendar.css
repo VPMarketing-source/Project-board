@@ -892,9 +892,33 @@
    3-class selector, which out-specifies the rule above and re-traps the
    sticky header. Match that selector's structure so the override wins. */
 .cal-weeks > .cal-week > .cal-week-body:has(.cal-sec-grid) { overflow: visible; }
-.cal-sec-headrow {
+/* Keep the Week-N tab row pinned while an open week scrolls, so you can jump
+   between weeks without scrolling back up. The tabs and the open week's grid
+   are siblings in the .cal-weeks flex row, so pinning the tab heads holds
+   them at the top. A full-width sticky backdrop (::before) sits one z-level
+   below the tabs to hide scrolling content in the gaps between them. The tab
+   row's height is measured in JS into --cal-tabs-h; the weekday header then
+   pins just beneath it instead of overlapping. */
+.cal-weeks > .cal-week > .cal-week-head {
     position: sticky;
     top: 0;
+    z-index: 42;
+  }
+.cal-weeks::before {
+    content: "";
+    order: -1;
+    flex: 0 0 100%;
+    height: var(--cal-tabs-h, 44px);
+    margin-bottom: calc(-1 * var(--cal-tabs-h, 44px));
+    position: sticky;
+    top: 0;
+    background: var(--cal-cream);
+    z-index: 41;
+    pointer-events: none;
+  }
+.cal-sec-headrow {
+    position: sticky;
+    top: var(--cal-tabs-h, 44px);
     z-index: 30;
     display: grid;
     grid-template-columns: var(--sec-label-w) repeat(7, minmax(0, 1fr));
