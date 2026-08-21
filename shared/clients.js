@@ -48,7 +48,7 @@ window.CLIENTS_REGISTRY = [
     id:       'weekly',
     name:     'Clients',
     initials: 'CL',
-    sub:      'Mon–Sun template',
+    sub:      'Client operating matrix',
     href:     'clients/weekly.html',
     accent:   '#1c6e72',
     pinned:   true,

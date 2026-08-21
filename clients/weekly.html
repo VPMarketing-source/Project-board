@@ -3,23 +3,29 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Weekly Structure — Project Clarity</title>
+<title>Clients — Project Clarity</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
 <script src="../shared/clients.js"></script>
 <script>
   /* =====================================================================
-     Weekly Structure — a template view of an ideal Mon–Sun week.
-     Storage namespace 'weekly' so it stays separate from the Personal
-     Planner (id 'vpm'). Keys are weekday slugs (mon/tue/.../sun) so the
-     content represents a recurring template, not a specific calendar week.
+     Clients — a client × section operating matrix.
+
+     NOT a planner/calendar. Columns are clients (pulled live from the
+     shared roster, PC_REGISTRY). Rows are user-defined sections. Every
+     client × section intersection is a cell that holds a list of items.
+
+     Storage namespace 'weekly' (unchanged, so cross-device sync keeps
+     working). New keys live under pc-ops::weekly::matrix::* — the old
+     day-template keys (::days::v1) are left untouched, so nothing the
+     page used to hold is destroyed.
      ===================================================================== */
   window.CLIENT_DATA = {
     id:       'weekly',
-    name:     'Weekly Structure',
-    initials: 'WS',
-    sub:      'Recurring weekly template',
+    name:     'Clients',
+    initials: 'CL',
+    sub:      'Client operating matrix',
   };
 </script>
 <script src="../shared/sync.js"></script>
@@ -29,218 +35,735 @@
     --surface:   #ffffff;
     --ink:       #2b2f3a;
     --ink-mute:  #6b7080;
-    --line:      #ebe6d4;
+    --line:      #e7e1cf;
+    --line-soft: #f0ead9;
     --accent:    #2960ff;
-    --accent-bg: #dde7ff;
-    --today-bg:  #eef2ff;
-    --weekend:   #fbf6e7;
+    --accent-bg: #eef2ff;
+    --label-w:   170px;
+    --col-min:   248px;
+    --radius:    12px;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--ink);
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 15px;
-    min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap {
-    max-width: 1480px;
+  .cx-wrap {
+    max-width: 100%;
     margin: 0 auto;
-    padding: 64px 24px 80px;
+    padding: 26px 22px 30px;
   }
 
-  .ws-head {
+  /* ── Header ─────────────────────────────────────────────────────── */
+  .cx-head {
     display: flex;
-    align-items: baseline;
+    align-items: flex-end;
     justify-content: space-between;
-    margin-bottom: 18px;
-    gap: 16px;
+    gap: 18px;
     flex-wrap: wrap;
+    margin-bottom: 16px;
   }
-  .ws-eyebrow {
+  .cx-eyebrow {
     font-size: 11px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--accent);
     font-weight: 700;
   }
-  .ws-title {
-    font-size: 26px;
+  .cx-title {
+    font-size: 25px;
     font-weight: 700;
-    margin: 4px 0 0;
+    margin: 5px 0 0;
     letter-spacing: -0.01em;
   }
-  .ws-sub {
+  .cx-sub {
     color: var(--ink-mute);
     font-size: 13px;
     margin: 4px 0 0;
+    max-width: 640px;
+    line-height: 1.5;
   }
-  .ws-clear {
+  .cx-actions { display: flex; gap: 8px; align-items: center; }
+  .cx-btn {
     appearance: none;
-    background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font: 500 12px/1 'Poppins', sans-serif;
-    letter-spacing: 0.02em;
-    color: var(--ink-mute);
-    cursor: pointer;
-    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-  }
-  .ws-clear:hover {
-    background: rgba(184,96,64,0.06);
-    color: #b86040;
-    border-color: rgba(184,96,64,0.3);
-  }
-
-  .ws-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    border-left: 1px solid var(--line);
-    border-top: 1px solid var(--line);
     background: var(--surface);
-    border-radius: 12px;
-    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px 14px;
+    font: 600 12.5px/1 'Poppins', sans-serif;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    white-space: nowrap;
   }
-  .ws-col {
+  .cx-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+  .cx-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cx-btn-primary:hover { background: #1c4fe0; border-color: #1c4fe0; color: #fff; }
+
+  /* ── Board (single grid, frozen header row + label column) ──────── */
+  .cx-board {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: auto;
+    display: grid;
+    /* grid-template-columns is set from JS to match the client count */
+  }
+  .cx-board.is-empty { display: block; padding: 60px 24px; text-align: center; color: var(--ink-mute); }
+
+  /* Corner — frozen to top AND left */
+  .cx-corner {
+    position: sticky;
+    top: 0; left: 0;
+    z-index: 7;
+    background: var(--surface);
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
+  }
+
+  /* Client header cells — frozen to top */
+  .cx-chead {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line-soft);
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .cx-chead:last-child { border-right: 0; }
+  .cx-avatar {
+    flex: 0 0 auto;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    color: #fff;
+  }
+  .cx-chead-meta { min-width: 0; }
+  .cx-chead-name {
+    font-size: 13.5px; font-weight: 600; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cx-chead-sub {
+    font-size: 11px; color: var(--ink-mute); line-height: 1.3; margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cx-chead-open {
+    margin-left: auto;
+    flex: 0 0 auto;
+    opacity: 0;
+    color: var(--ink-mute);
+    text-decoration: none;
+    font-size: 15px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+  }
+  .cx-chead:hover .cx-chead-open { opacity: 1; }
+  .cx-chead-open:hover { background: var(--accent-bg); color: var(--accent); }
+
+  /* Section label cells — frozen to left */
+  .cx-label {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--line-soft);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    min-height: 520px;
+    gap: 6px;
+    min-width: 0;
   }
-  .ws-col.is-weekend { background: var(--weekend); }
-  .ws-col.is-today   { background: var(--today-bg); }
-  .ws-col-head {
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--line);
-    text-align: center;
-    background: rgba(255,255,255,0.5);
+  .cx-label-name {
+    font-size: 13px; font-weight: 700; color: var(--ink);
+    line-height: 1.3; outline: none; cursor: text;
+    overflow-wrap: anywhere;
   }
-  .ws-col.is-today .ws-col-head { background: var(--today-bg); }
-  .ws-dow {
-    font-size: 11px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+  .cx-label-name:focus { background: #fff; border-radius: 5px; box-shadow: 0 0 0 2px var(--accent-bg); }
+  .cx-label-tools { display: flex; gap: 3px; opacity: 0; transition: opacity 130ms ease; }
+  .cx-label:hover .cx-label-tools { opacity: 1; }
+  .cx-label-tools button {
+    width: 21px; height: 21px;
+    border: 1px solid var(--line);
+    background: #fff;
     color: var(--ink-mute);
-    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
   }
-  .ws-col.is-today .ws-dow { color: var(--accent); }
-  .ws-body {
+  .cx-label-tools button:hover { color: var(--accent); border-color: var(--accent); }
+  .cx-label-del:hover { color: #c0392b; border-color: #c0392b; }
+
+  /* Cells */
+  .cx-cell {
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line);
+    padding: 6px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .cx-cell:last-child { border-right: 0; }
+  .cx-items { display: flex; flex-direction: column; gap: 2px; }
+  .cx-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 100ms ease;
+  }
+  .cx-item:hover { background: rgba(17,19,26,0.035); }
+  .cx-item-check {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    width: 15px; height: 15px;
+    border: 1.5px solid #c4bda6;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .cx-item-check svg { width: 10px; height: 10px; opacity: 0; }
+  .cx-item.is-done .cx-item-check { background: #16a34a; border-color: #16a34a; }
+  .cx-item.is-done .cx-item-check svg { opacity: 1; stroke: #fff; }
+  .cx-item-text {
     flex: 1 1 auto;
-    padding: 14px 14px 18px;
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 13.5px;
+    line-height: 1.45;
     color: var(--ink);
     outline: none;
     overflow-wrap: anywhere;
+    min-width: 0;
   }
-  .ws-body:empty::before {
-    content: attr(data-placeholder);
-    color: #b8af96;
-    font-style: italic;
+  .cx-item.is-done .cx-item-text { text-decoration: line-through; color: var(--ink-mute); }
+  .cx-item-del {
+    flex: 0 0 auto;
+    opacity: 0;
+    width: 18px; height: 18px;
+    border: 0; background: transparent;
+    color: var(--ink-mute); cursor: pointer;
+    font-size: 15px; line-height: 1;
+    border-radius: 4px;
   }
-  .ws-body:focus-visible {
-    background: rgba(41,96,255,0.04);
+  .cx-item:hover .cx-item-del { opacity: 0.7; }
+  .cx-item-del:hover { opacity: 1; color: #c0392b; background: rgba(192,57,43,0.08); }
+  /* Quick-add affordance */
+  .cx-cell-add {
+    margin-top: 2px;
+    align-self: flex-start;
+    border: 0;
+    background: transparent;
+    color: var(--ink-mute);
+    font: 500 12px/1 'Poppins', sans-serif;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
   }
-  /* Allow simple rich text inside cells */
-  .ws-body ul, .ws-body ol { padding-left: 18px; margin: 6px 0; }
-  .ws-body li { margin: 2px 0; }
-  .ws-body strong { font-weight: 600; }
-  .ws-body em { font-style: italic; }
+  .cx-cell:hover .cx-cell-add { opacity: 1; }
+  .cx-cell.is-empty { cursor: text; }
+  .cx-cell.is-empty .cx-cell-add { opacity: 0.65; }
+  .cx-cell-add:hover { background: var(--accent-bg); color: var(--accent); opacity: 1; }
 
-  @media (max-width: 900px) {
-    .ws-grid { grid-template-columns: 1fr; }
-    .ws-col { min-height: auto; border-right: 0; }
-    .ws-col + .ws-col { border-top: 0; }
+  /* Resize handle — spans the whole row, sits between section bands */
+  .cx-divider {
+    grid-column: 1 / -1;
+    height: 7px;
+    margin-top: -7px;
+    cursor: row-resize;
+    background: transparent;
+    z-index: 3;
+    transition: background 120ms ease;
   }
+  .cx-divider:hover { background: var(--accent-bg); }
+
+  /* Add-section ghost row at the very bottom-left */
+  .cx-addrow {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface);
+    position: sticky;
+    left: 0;
+  }
+  .cx-addrow button {
+    border: 1px dashed #cfc6ab;
+    background: #fff;
+    color: var(--ink-mute);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font: 500 12px/1 'Poppins', sans-serif;
+    cursor: pointer;
+  }
+  .cx-addrow button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .cx-empty-hint { font-size: 14px; }
+  .cx-empty-hint strong { color: var(--ink); }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <header class="ws-head">
+<div class="cx-wrap">
+  <header class="cx-head">
     <div>
-      <div class="ws-eyebrow">Weekly Structure</div>
-      <h1 class="ws-title">My ideal week</h1>
-      <p class="ws-sub">Template only — same notes repeat every week. Use the Personal Planner for date-specific events.</p>
+      <div class="cx-eyebrow">Board</div>
+      <h1 class="cx-title">Clients</h1>
+      <p class="cx-sub">Manage and view every client across your key business areas. Scan a row to compare one area across all clients, or a column to see everything for one client.</p>
     </div>
-    <button type="button" class="ws-clear" id="ws-clear-btn" title="Reset every day to empty">Reset week</button>
+    <div class="cx-actions">
+      <button type="button" class="cx-btn cx-btn-primary" id="cx-add-section">+ Add section</button>
+    </div>
   </header>
 
-  <div class="ws-grid" id="ws-grid"></div>
+  <div class="cx-board" id="cx-board"></div>
 </div>
 
 <script src="../shared/nav.js"></script>
 <script>
-(function bootWeekly() {
-  const STORE_KEY = 'pc-ops::weekly::days::v1';
-  const DAYS = [
-    { key: 'mon', label: 'Monday',    weekend: false },
-    { key: 'tue', label: 'Tuesday',   weekend: false },
-    { key: 'wed', label: 'Wednesday', weekend: false },
-    { key: 'thu', label: 'Thursday',  weekend: false },
-    { key: 'fri', label: 'Friday',    weekend: false },
-    { key: 'sat', label: 'Saturday',  weekend: true  },
-    { key: 'sun', label: 'Sunday',    weekend: true  },
-  ];
-  const TODAY_DOW = (new Date().getDay() + 6) % 7; // 0 = Mon
+(function bootClientsBoard() {
+  const SECTIONS_KEY = 'pc-ops::weekly::matrix::sections::v1';
+  const ITEMS_KEY    = 'pc-ops::weekly::matrix::items::v1';
 
-  const gridEl = document.getElementById('ws-grid');
-  const state  = load();
+  const board = document.getElementById('cx-board');
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) return JSON.parse(raw) || {};
-    } catch (_) {}
-    return {};
+  /* ── Small helpers ────────────────────────────────────────────── */
+  let __seq = 0;
+  function genId(prefix) {
+    return (prefix || 'x') + Date.now().toString(36) + (__seq++).toString(36) +
+           Math.floor(Math.random() * 1e4).toString(36);
   }
-  function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {}
-  }
-  function escape(s) {
+  function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-
-  function render() {
-    gridEl.innerHTML = DAYS.map((d, i) => {
-      const cls = 'ws-col' + (d.weekend ? ' is-weekend' : '') + (i === TODAY_DOW ? ' is-today' : '');
-      return `
-        <div class="${cls}">
-          <div class="ws-col-head">
-            <div class="ws-dow">${escape(d.label)}</div>
-          </div>
-          <div class="ws-body" contenteditable="true" data-key="${d.key}" data-placeholder="What does ${escape(d.label)} look like…">${state[d.key] || ''}</div>
-        </div>
-      `;
-    }).join('');
-    wire();
+  // Only write once sync has seeded the real data (or when there's no sync
+  // at all / it's offline). Prevents a pre-seed render from pushing empty
+  // defaults over good server data and orphaning every cell.
+  function canWrite() {
+    const P = window.__planner;
+    return !(P && typeof P.canPersist === 'function') || P.canPersist();
   }
 
-  function wire() {
-    gridEl.querySelectorAll('.ws-body').forEach((el) => {
-      el.addEventListener('input', () => {
-        const k = el.dataset.key;
-        const stripped = el.innerHTML.replace(/<br\s*\/?>/gi, '').trim();
-        if (!stripped) delete state[k]; else state[k] = el.innerHTML;
-        save();
-      });
+  /* ── Persistence ──────────────────────────────────────────────── */
+  function loadSections() {
+    try { const a = JSON.parse(localStorage.getItem(SECTIONS_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  }
+  function saveSections(arr) {
+    if (!canWrite()) return;
+    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(arr)); } catch (_) {}
+  }
+  function loadItems() {
+    try { return JSON.parse(localStorage.getItem(ITEMS_KEY) || '{}') || {}; }
+    catch (_) { return {}; }
+  }
+  function saveItems(obj) {
+    if (!canWrite()) return;
+    try { localStorage.setItem(ITEMS_KEY, JSON.stringify(obj)); } catch (_) {}
+  }
+  function cellKey(clientId, sid) { return clientId + '::' + sid; }
+
+  /* ── Sections model ───────────────────────────────────────────── */
+  function mkSection(name) { return { id: genId('s'), name: name, height: 120 }; }
+
+  function getSections() {
+    let arr = loadSections();
+    if (!arr.length) {
+      const def = [mkSection('Section 1'), mkSection('Section 2'), mkSection('Section 3')];
+      if (canWrite()) { saveSections(def); return loadSections(); }
+      return def; // transient until sync seeds; repaints on seed
+    }
+    return arr;
+  }
+  function addSection() {
+    const arr = getSections().slice();
+    arr.push(mkSection('New section'));
+    saveSections(arr);
+    renderBoard();
+  }
+  function renameSection(sid, name) {
+    const arr = loadSections();
+    const s = arr.find((x) => x.id === sid);
+    if (s) { s.name = name; saveSections(arr); }
+  }
+  function deleteSection(sid) {
+    const arr = loadSections();
+    if (arr.length <= 1) return; // keep at least one row
+    const s = arr.find((x) => x.id === sid);
+    const name = (s && s.name && s.name.trim()) || 'this section';
+    // Does any client have items in this section?
+    const items = loadItems();
+    const hasContent = currentClients.some((c) => (items[cellKey(c.id, sid)] || []).length);
+    const msg = 'Delete the "' + name + '" section?' +
+      (hasContent ? '\n\nEverything in this row, for every client, will be removed too. This can’t be undone.'
+                  : '\n\nThis can’t be undone.');
+    if (!window.confirm(msg)) return;
+    saveSections(arr.filter((x) => x.id !== sid));
+    // Drop the orphaned cells so the blob doesn't grow forever.
+    const next = loadItems();
+    currentClients.forEach((c) => { delete next[cellKey(c.id, sid)]; });
+    saveItems(next);
+    renderBoard();
+  }
+  function moveSection(sid, dir) {
+    const arr = loadSections();
+    const i = arr.findIndex((x) => x.id === sid);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    saveSections(arr);
+    renderBoard();
+  }
+  function startResize(e, sid, labelEl) {
+    e.preventDefault();
+    e.stopPropagation();
+    const pointY = (ev) => (ev.touches && ev.touches[0]) ? ev.touches[0].clientY
+                         : (ev.changedTouches && ev.changedTouches[0]) ? ev.changedTouches[0].clientY
+                         : ev.clientY;
+    const startY = pointY(e);
+    const startH = labelEl.getBoundingClientRect().height;
+    const onMove = (ev) => {
+      if (ev.cancelable) ev.preventDefault();
+      labelEl.style.minHeight = Math.max(56, startH + (pointY(ev) - startY)) + 'px';
+    };
+    const onUp = (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      const h = Math.round(Math.max(56, startH + (pointY(ev) - startY)));
+      const arr = loadSections();
+      const s = arr.find((x) => x.id === sid);
+      if (s) { s.height = h; saveSections(arr); }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+  }
+
+  /* ── Items model (one cell = an ordered list of items) ─────────── */
+  function getItems(ck) { return loadItems()[ck] || []; }
+  function addItem(ck, atIndex, text) {
+    const all = loadItems();
+    const list = all[ck] ? all[ck].slice() : [];
+    const item = { id: genId('i'), text: text || '', done: false };
+    if (typeof atIndex === 'number' && atIndex >= 0 && atIndex <= list.length) list.splice(atIndex, 0, item);
+    else list.push(item);
+    all[ck] = list;
+    saveItems(all);
+    return item;
+  }
+  function updateItem(ck, id, text) {
+    const all = loadItems();
+    const list = all[ck];
+    if (!list) return;
+    const it = list.find((x) => x.id === id);
+    if (!it) return;
+    it.text = text;
+    saveItems(all);
+  }
+  function toggleItem(ck, id) {
+    const all = loadItems();
+    const list = all[ck];
+    if (!list) return false;
+    const it = list.find((x) => x.id === id);
+    if (!it) return false;
+    it.done = !it.done;
+    saveItems(all);
+    return it.done;
+  }
+  function deleteItem(ck, id) {
+    const all = loadItems();
+    const list = all[ck];
+    if (!list) return;
+    const next = list.filter((x) => x.id !== id);
+    if (next.length) all[ck] = next; else delete all[ck];
+    saveItems(all);
+  }
+
+  /* ── Clients (live from the shared roster) ─────────────────────── */
+  // Real clients only — exclude the internal "spaces" (pinned) and the
+  // group dividers. Custom clients added via "+ Add client" are non-pinned,
+  // so they show up automatically.
+  let currentClients = [];
+  function pickClients(list) {
+    return (list || []).filter((c) => c && !c.divider && !c.pinned);
+  }
+  function clientsSignature(list) { return list.map((c) => c.id).join('|'); }
+
+  /* ── Rendering ────────────────────────────────────────────────── */
+  function focusEditableEnd(el) {
+    el.focus();
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  function refreshEmpty(cell) {
+    const has = cell.querySelector('.cx-items').children.length > 0;
+    cell.classList.toggle('is-empty', !has);
+  }
+
+  function itemEl(ck, it) {
+    const row = document.createElement('div');
+    row.className = 'cx-item' + (it.done ? ' is-done' : '');
+    row.dataset.id = it.id;
+
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'cx-item-check';
+    check.setAttribute('aria-label', 'Mark complete');
+    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    check.addEventListener('mousedown', (e) => e.preventDefault()); // don't blur the text
+    check.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const done = toggleItem(ck, it.id);
+      row.classList.toggle('is-done', done);
     });
+
+    const text = document.createElement('div');
+    text.className = 'cx-item-text';
+    text.setAttribute('contenteditable', 'plaintext-only');
+    text.setAttribute('spellcheck', 'false');
+    text.textContent = it.text || '';
+    text.addEventListener('input', () => updateItem(ck, it.id, text.textContent));
+    text.addEventListener('keydown', (e) => onItemKey(e, ck, it.id, row, text));
+    text.addEventListener('blur', () => {
+      if (!text.textContent.trim()) {
+        deleteItem(ck, it.id);
+        const cell = row.closest('.cx-cell');
+        row.remove();
+        if (cell) refreshEmpty(cell);
+      }
+    });
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'cx-item-del';
+    del.textContent = '×';
+    del.title = 'Delete item';
+    del.addEventListener('mousedown', (e) => e.preventDefault());
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteItem(ck, it.id);
+      const cell = row.closest('.cx-cell');
+      row.remove();
+      if (cell) refreshEmpty(cell);
+    });
+
+    row.appendChild(check);
+    row.appendChild(text);
+    row.appendChild(del);
+    return row;
   }
 
-  document.getElementById('ws-clear-btn').addEventListener('click', () => {
-    if (!confirm('Reset every day in this week template to empty?')) return;
-    Object.keys(state).forEach((k) => delete state[k]);
-    save();
-    render();
-  });
+  function onItemKey(e, ck, id, row, text) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const list = row.parentNode;
+      const idx = Array.prototype.indexOf.call(list.children, row);
+      const nit = addItem(ck, idx + 1);
+      const nel = itemEl(ck, nit);
+      if (row.nextSibling) list.insertBefore(nel, row.nextSibling); else list.appendChild(nel);
+      focusEditableEnd(nel.querySelector('.cx-item-text'));
+    } else if (e.key === 'Backspace' && !text.textContent) {
+      e.preventDefault();
+      const prev = row.previousElementSibling;
+      const cell = row.closest('.cx-cell');
+      deleteItem(ck, id);
+      row.remove();
+      if (prev) focusEditableEnd(prev.querySelector('.cx-item-text'));
+      if (cell) refreshEmpty(cell);
+    }
+  }
 
-  render();
+  function addItemToCell(cell, ck, atIndex) {
+    const list = cell.querySelector('.cx-items');
+    const it = addItem(ck, atIndex);
+    const el = itemEl(ck, it);
+    list.appendChild(el);
+    refreshEmpty(cell);
+    focusEditableEnd(el.querySelector('.cx-item-text'));
+  }
+
+  function cellEl(clientId, sec) {
+    const ck = cellKey(clientId, sec.id);
+    const cell = document.createElement('div');
+    cell.className = 'cx-cell';
+    cell.dataset.cell = ck;
+
+    const list = document.createElement('div');
+    list.className = 'cx-items';
+    getItems(ck).forEach((it) => list.appendChild(itemEl(ck, it)));
+    cell.appendChild(list);
+
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'cx-cell-add';
+    add.textContent = '+ Add';
+    add.addEventListener('click', (e) => { e.stopPropagation(); addItemToCell(cell, ck); });
+    cell.appendChild(add);
+
+    // Click empty space in the cell to start a new item.
+    cell.addEventListener('click', (e) => {
+      if (e.target === cell || e.target === list) addItemToCell(cell, ck);
+    });
+
+    refreshEmpty(cell);
+    return cell;
+  }
+
+  function clientHeadEl(c) {
+    const head = document.createElement('div');
+    head.className = 'cx-chead';
+    const av = document.createElement('span');
+    av.className = 'cx-avatar';
+    av.style.backgroundColor = c.accent || '#6c6f7a';
+    av.textContent = c.initials || (c.name || '?').slice(0, 2).toUpperCase();
+    const meta = document.createElement('div');
+    meta.className = 'cx-chead-meta';
+    meta.innerHTML = '<div class="cx-chead-name">' + escapeHtml(c.name || c.id) + '</div>' +
+      (c.sub ? '<div class="cx-chead-sub">' + escapeHtml(c.sub) + '</div>' : '');
+    head.appendChild(av);
+    head.appendChild(meta);
+    if (c.href) {
+      const open = document.createElement('a');
+      open.className = 'cx-chead-open';
+      open.href = '../' + c.href;
+      open.title = 'Open ' + (c.name || 'client');
+      open.setAttribute('aria-label', 'Open ' + (c.name || 'client'));
+      open.textContent = '↗';
+      head.appendChild(open);
+    }
+    return head;
+  }
+
+  function labelEl(sec) {
+    const label = document.createElement('div');
+    label.className = 'cx-label';
+    label.dataset.section = sec.id;
+    label.style.minHeight = (sec.height || 120) + 'px';
+
+    const name = document.createElement('div');
+    name.className = 'cx-label-name';
+    name.setAttribute('contenteditable', 'plaintext-only');
+    name.setAttribute('spellcheck', 'false');
+    name.textContent = sec.name;
+    name.addEventListener('input', () => renameSection(sec.id, name.textContent));
+
+    const tools = document.createElement('div');
+    tools.className = 'cx-label-tools';
+    tools.innerHTML =
+      '<button type="button" class="cx-label-up" title="Move up" aria-label="Move up">↑</button>' +
+      '<button type="button" class="cx-label-down" title="Move down" aria-label="Move down">↓</button>' +
+      '<button type="button" class="cx-label-del" title="Delete section" aria-label="Delete section">×</button>';
+    tools.querySelector('.cx-label-up').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, -1); });
+    tools.querySelector('.cx-label-down').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, 1); });
+    tools.querySelector('.cx-label-del').addEventListener('click', (e) => { e.stopPropagation(); deleteSection(sec.id); });
+
+    label.appendChild(name);
+    label.appendChild(tools);
+    return label;
+  }
+
+  function renderBoard() {
+    board.innerHTML = '';
+    board.classList.remove('is-empty');
+
+    if (!currentClients.length) {
+      board.classList.add('is-empty');
+      board.innerHTML = '<div class="cx-empty-hint">No clients yet. Add clients from the <strong>home page</strong> and they’ll appear here as columns.</div>';
+      return;
+    }
+
+    const clients = currentClients;
+    board.style.gridTemplateColumns =
+      'var(--label-w) repeat(' + clients.length + ', minmax(var(--col-min), 1fr))';
+
+    // Header row: corner + one head per client.
+    const corner = document.createElement('div');
+    corner.className = 'cx-corner';
+    board.appendChild(corner);
+    clients.forEach((c) => board.appendChild(clientHeadEl(c)));
+
+    // Section rows: label + one cell per client, then a resize handle.
+    const sections = getSections();
+    sections.forEach((sec) => {
+      const label = labelEl(sec);
+      board.appendChild(label);
+      clients.forEach((c) => board.appendChild(cellEl(c.id, sec)));
+
+      const divider = document.createElement('div');
+      divider.className = 'cx-divider';
+      divider.title = 'Drag to resize this section';
+      divider.addEventListener('mousedown', (e) => startResize(e, sec.id, label));
+      divider.addEventListener('touchstart', (e) => startResize(e, sec.id, label), { passive: false });
+      board.appendChild(divider);
+    });
+
+    // Bottom-left add-section ghost row.
+    const addrow = document.createElement('div');
+    addrow.className = 'cx-addrow';
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.textContent = '+ Add section';
+    addBtn.addEventListener('click', addSection);
+    addrow.appendChild(addBtn);
+    board.appendChild(addrow);
+
+    sizeBoard();
+  }
+
+  /* Bound the board's height to the viewport so the header row and label
+     column freeze while the body scrolls. */
+  function sizeBoard() {
+    const top = board.getBoundingClientRect().top + window.scrollY;
+    const h = window.innerHeight - top + window.scrollY - 24;
+    board.style.maxHeight = Math.max(320, h) + 'px';
+  }
+
+  /* ── Boot ─────────────────────────────────────────────────────── */
+  document.getElementById('cx-add-section').addEventListener('click', addSection);
+  window.addEventListener('resize', sizeBoard);
+  window.addEventListener('load', sizeBoard);
+
+  // Paint immediately from the cached roster, then refresh from the server.
+  currentClients = pickClients(window.PC_REGISTRY ? window.PC_REGISTRY.cached() : (window.CLIENTS_REGISTRY || []));
+  renderBoard();
+
+  if (window.PC_REGISTRY && window.PC_REGISTRY.load) {
+    window.PC_REGISTRY.load().then((list) => {
+      const next = pickClients(list);
+      if (clientsSignature(next) !== clientsSignature(currentClients)) {
+        currentClients = next;
+        renderBoard();
+      }
+    }).catch(() => {});
+  }
 })();
 </script>
 
