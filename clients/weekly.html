@@ -210,11 +210,10 @@
     <div>
       <div class="cx-eyebrow">Board</div>
       <h1 class="cx-title">Clients</h1>
-      <p class="cx-sub">One matrix. Name your columns and your sections yourself, then fill each cell with free text — highlight, add checkboxes, whatever you need, the same as the planner.</p>
     </div>
     <div class="cx-actions">
-      <button type="button" class="cx-btn" id="cx-add-client">+ Add client</button>
-      <button type="button" class="cx-btn cx-btn-primary" id="cx-add-section">+ Add section</button>
+      <button type="button" class="cx-btn" id="cx-add-client">+ Add column</button>
+      <button type="button" class="cx-btn cx-btn-primary" id="cx-add-section">+ Add row</button>
     </div>
   </header>
 
@@ -253,16 +252,8 @@
   function mkColumn(name) { return { id: genId('c'), name: name || '' }; }
   function loadColumns() { const a = readJSON(COLUMNS_KEY, []); return Array.isArray(a) ? a : []; }
   function saveColumns(a) { writeJSON(COLUMNS_KEY, a); }
-  // First run: seed with the client names already in the app as a starting
-  // point (fully editable free text — nothing stays linked to the roster).
-  function seedColumnNames() {
-    try {
-      const roster = window.PC_REGISTRY ? window.PC_REGISTRY.cached() : (window.CLIENTS_REGISTRY || []);
-      const names = (roster || []).filter((c) => c && !c.divider && !c.pinned).map((c) => c.name).filter(Boolean);
-      if (names.length) return names;
-    } catch (_) {}
-    return ['Client 1', 'Client 2', 'Client 3', 'Client 4'];
-  }
+  // First run: a few blank columns for the user to name themselves.
+  function seedColumnNames() { return ['', '', '']; }
   function getColumns() {
     const arr = loadColumns();
     if (arr.length) return arr;
@@ -291,7 +282,7 @@
     const cells = loadCells();
     const hasContent = getSections().some((s) => (cells[cellKey(id, s.id)] || '').trim());
     const msg = 'Delete the "' + name + '" column?' +
-      (hasContent ? '\n\nEverything in this column, for every section, will be removed too. This can’t be undone.'
+      (hasContent ? '\n\nEverything in this column, for every row, will be removed too. This can’t be undone.'
                   : '\n\nThis can’t be undone.');
     if (!window.confirm(msg)) return;
     saveColumns(a.filter((x) => x.id !== id));
@@ -316,20 +307,20 @@
     const arr = loadSections();
     if (arr.length) return arr;
     if (currentSections.length) return currentSections;   // stable transient seed
-    const def = [mkSection('Section 1'), mkSection('Section 2'), mkSection('Section 3')];
+    const def = [mkSection('Row 1'), mkSection('Row 2'), mkSection('Row 3')];
     if (canWrite()) { saveSections(def); return loadSections(); }
     return def;
   }
-  function addSection() { const a = getSections().slice(); a.push(mkSection('New section')); saveSections(a); renderBoard(); }
+  function addSection() { const a = getSections().slice(); a.push(mkSection('New row')); saveSections(a); renderBoard(); }
   function renameSection(id, name) { const a = loadSections(); const s = a.find((x) => x.id === id); if (s) { s.name = name; saveSections(a); } }
   function deleteSection(id) {
     const a = loadSections();
     if (a.length <= 1) return;
     const s = a.find((x) => x.id === id);
-    const name = (s && s.name && s.name.trim()) || 'this section';
+    const name = (s && s.name && s.name.trim()) || 'this row';
     const cells = loadCells();
     const hasContent = currentColumns.some((c) => (cells[cellKey(c.id, id)] || '').trim());
-    const msg = 'Delete the "' + name + '" section?' +
+    const msg = 'Delete the "' + name + '" row?' +
       (hasContent ? '\n\nEverything in this row, for every column, will be removed too. This can’t be undone.'
                   : '\n\nThis can’t be undone.');
     if (!window.confirm(msg)) return;
@@ -439,7 +430,7 @@
     name.className = 'cx-chead-name';
     name.setAttribute('contenteditable', 'plaintext-only');
     name.setAttribute('spellcheck', 'false');
-    name.dataset.placeholder = 'Client name…';
+    name.dataset.placeholder = 'Column name…';
     name.textContent = col.name || '';
     name.addEventListener('input', () => renameColumn(col.id, name.textContent));
 
@@ -478,7 +469,7 @@
     tools.innerHTML =
       '<button type="button" class="cx-label-up" title="Move up">↑</button>' +
       '<button type="button" class="cx-label-down" title="Move down">↓</button>' +
-      '<button type="button" class="cx-label-del" title="Delete section">×</button>';
+      '<button type="button" class="cx-label-del" title="Delete row">×</button>';
     tools.querySelector('.cx-label-up').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, -1); });
     tools.querySelector('.cx-label-down').addEventListener('click', (e) => { e.stopPropagation(); moveSection(sec.id, 1); });
     tools.querySelector('.cx-label-del').addEventListener('click', (e) => { e.stopPropagation(); deleteSection(sec.id); });
@@ -527,7 +518,7 @@
     const cols = currentColumns;
     if (!cols.length) {
       board.classList.add('is-empty');
-      board.innerHTML = '<div class="cx-empty-hint">No columns yet — click <strong>+ Add client</strong> to start.</div>';
+      board.innerHTML = '<div class="cx-empty-hint">No columns yet — click <strong>+ Add column</strong> to start.</div>';
       return;
     }
 
@@ -540,7 +531,7 @@
       board.appendChild(labelEl(sec));
       cols.forEach((c) => board.appendChild(cellEl(c.id, sec)));
       const divider = document.createElement('div');
-      divider.className = 'cx-divider'; divider.title = 'Drag to resize this section';
+      divider.className = 'cx-divider'; divider.title = 'Drag to resize this row';
       const lbl = board.querySelector('.cx-label[data-section="' + sec.id + '"]');
       divider.addEventListener('mousedown', (e) => startResize(e, sec.id, lbl));
       divider.addEventListener('touchstart', (e) => startResize(e, sec.id, lbl), { passive: false });
@@ -548,7 +539,7 @@
     });
 
     const addrow = document.createElement('div'); addrow.className = 'cx-addrow';
-    const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.textContent = '+ Add section';
+    const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.textContent = '+ Add row';
     addBtn.addEventListener('click', addSection); addrow.appendChild(addBtn); board.appendChild(addrow);
 
     sizeBoard();
