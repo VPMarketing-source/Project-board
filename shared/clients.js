@@ -46,8 +46,8 @@ window.CLIENTS_REGISTRY = [
   },
   {
     id:       'weekly',
-    name:     'Weekly Structure',
-    initials: 'WS',
+    name:     'Clients',
+    initials: 'CL',
     sub:      'Mon–Sun template',
     href:     'clients/weekly.html',
     accent:   '#1c6e72',
