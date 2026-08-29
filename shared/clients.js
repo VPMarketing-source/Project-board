@@ -17,15 +17,9 @@
    They live in Supabase and are merged in at runtime by PC_REGISTRY below.
    ========================================================================= */
 window.CLIENTS_REGISTRY = [
-  {
-    id:       'vpm',
-    name:     'Personal',
-    initials: 'MH',
-    sub:      '',
-    href:     'clients/vpm.html',
-    accent:   '#a86b14',
-    pinned:   true,
-  },
+  /* Pinned tiles render 3-across on the home page, so this order reads:
+       Personal Planner | VP Marketing | Clients
+       Personal         | Fitness                                        */
   {
     id:       'personal-planner',
     name:     'Personal Planner',
@@ -33,15 +27,6 @@ window.CLIENTS_REGISTRY = [
     sub:      '',
     href:     'clients/personal-planner.html',
     accent:   '#5b4bb0',
-    pinned:   true,
-  },
-  {
-    id:       'fitness',
-    name:     'Fitness',
-    initials: 'FT',
-    sub:      'Weekly tracking',
-    href:     'clients/fitness.html',
-    accent:   '#2e7d5b',
     pinned:   true,
   },
   {
@@ -60,6 +45,24 @@ window.CLIENTS_REGISTRY = [
     sub:      'Client operating matrix',
     href:     'clients/weekly.html',
     accent:   '#1c6e72',
+    pinned:   true,
+  },
+  {
+    id:       'vpm',
+    name:     'Personal',
+    initials: 'MH',
+    sub:      '',
+    href:     'clients/vpm.html',
+    accent:   '#a86b14',
+    pinned:   true,
+  },
+  {
+    id:       'fitness',
+    name:     'Fitness',
+    initials: 'FT',
+    sub:      'Weekly tracking',
+    href:     'clients/fitness.html',
+    accent:   '#2e7d5b',
     pinned:   true,
   },
   {
