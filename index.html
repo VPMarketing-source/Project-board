@@ -268,16 +268,23 @@
     grid-template-columns: 1fr;
     gap: 8px;
   }
-  /* Pinned (personal/agency) tiles: 3 across, wrapping to a second row */
+  /* Pinned (personal/agency) tiles: 3 across, wrapping to a second row.
+     Flex (not grid) so a short last row centres under the one above. */
   #pinned-grid {
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 12px;
   }
+  #pinned-grid > * {
+    flex: 0 1 calc((100% - 24px) / 3);
+    min-width: 0;
+  }
   @media (max-width: 900px) {
-    #pinned-grid { grid-template-columns: repeat(2, 1fr); }
+    #pinned-grid > * { flex-basis: calc((100% - 12px) / 2); }
   }
   @media (max-width: 600px) {
-    #pinned-grid { grid-template-columns: 1fr; }
+    #pinned-grid > * { flex-basis: 100%; }
   }
   .tile-grid + .tile-divider {
     margin: 22px 0 16px;
