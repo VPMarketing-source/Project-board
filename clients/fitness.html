@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fitness — Project Clarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<script src="../shared/clients.js"></script>
+<script>
+  /* =====================================================================
+     Fitness — weekly tracking table.
+
+     One editable row per metric (Run / Gym / Calories / Weight / Deficit)
+     across Mon–Sun, plus a Tracked checkbox row. Data is stored per week
+     under pc-ops::fitness::week::<monday ISO date>, goals under a single
+     pc-ops::fitness::goals key, so sync.js mirrors everything to Supabase
+     exactly like the other planner pages.
+     ===================================================================== */
+  window.CLIENT_DATA = {
+    id:       'fitness',
+    name:     'Fitness',
+    initials: 'FT',
+    sub:      '',
+  };
+</script>
+<script src="../shared/sync.js"></script>
+<style>
+  :root {
+    --ink: #11131a;
+    --ink-soft: #4a5160;
+    --ink-faint: #8a8f9c;
+    --line: rgba(17,19,26,0.08);
+    --line-strong: rgba(17,19,26,0.14);
+    --paper: #f7f2e7;
+    --card: #ffffff;
+    --accent: #2e7d5b;
+    --accent-soft: rgba(46,125,91,0.10);
+    --met: #1d7a46;
+    --met-bg: rgba(29,122,70,0.10);
+    --miss: #b0532a;
+    --miss-bg: rgba(176,83,42,0.09);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+  }
+  .ft-wrap {
+    max-width: min(1280px, calc(100vw - 24px));
+    margin: 0 auto;
+    padding: 16px 12px 80px;
+  }
+  .ft-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 8px 0 18px;
+  }
+  .ft-avatar {
+    width: 38px; height: 38px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(17,19,26,0.12);
+    background: #fff;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--accent);
+  }
+  .ft-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+  .ft-weeknav {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ft-weeklabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    min-width: 150px;
+    text-align: center;
+  }
+  .ft-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: #fff;
+    font: 500 13px/1 Poppins, sans-serif;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .ft-btn:hover { background: rgba(17,19,26,0.04); color: var(--ink); }
+  .ft-btn.ft-btn-today { color: var(--accent); border-color: rgba(46,125,91,0.35); }
+  .ft-btn.ft-btn-today:hover { background: var(--accent-soft); }
+
+  .ft-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(17,19,26,0.04);
+    overflow-x: auto;
+  }
+  table.ft {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13.5px;
+  }
+  .ft th, .ft td {
+    padding: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ft thead th {
+    padding: 12px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: center;
+    background: #fff;
+    border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  .ft thead th .ft-daynum {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ink-faint);
+    text-transform: none;
+  }
+  .ft thead th:first-child { text-align: left; padding-left: 16px; }
+
+  .ft tbody tr:last-child th,
+  .ft tbody tr:last-child td { border-bottom: none; }
+
+  .ft tbody th {
+    padding: 0 10px 0 16px;
+    font-weight: 600;
+    font-size: 13px;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--ink);
+    background: #fff;
+  }
+  .ft tbody th .ft-unit {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--ink-faint);
+    margin-top: 1px;
+  }
+
+  /* Sticky metric column so labels stay visible when scrolling on mobile. */
+  .ft thead th:first-child,
+  .ft tbody th {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 1px 0 0 var(--line);
+  }
+
+  .ft td input[type="text"] {
+    width: 100%;
+    min-width: 64px;
+    border: 0;
+    background: transparent;
+    padding: 13px 8px;
+    font: 500 13.5px/1.2 "JetBrains Mono", ui-monospace, monospace;
+    color: var(--ink);
+    text-align: center;
+    outline: none;
+  }
+  .ft td input[type="text"]::placeholder { color: rgba(17,19,26,0.18); }
+  .ft td:has(input:focus) { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 6px; }
+
+  /* Day-state colouring: today gets a soft accent column, future days dim. */
+  .ft .is-today { background: var(--accent-soft); }
+  .ft thead th.is-today { color: var(--accent); }
+  .ft thead th.is-today .ft-daynum { color: var(--accent); font-weight: 600; }
+  .ft .is-future input { color: var(--ink-faint); }
+  .ft .is-future { background: rgba(17,19,26,0.015); }
+
+  /* Goal + Total columns — slightly stronger. */
+  .ft .col-goal, .ft .col-total { background: #faf8f2; }
+  .ft thead th.col-goal, .ft thead th.col-total { color: var(--ink-soft); }
+  .ft td.col-goal { border-left: 1px solid var(--line-strong); }
+  .ft td.col-goal input { font-weight: 500; color: var(--ink-soft); }
+  .ft td.col-total {
+    font: 600 13.5px/1.2 "JetBrains Mono", ui-monospace, monospace;
+    text-align: center;
+    padding: 13px 10px;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .ft td.col-total.is-met  { color: var(--met);  background: var(--met-bg); }
+  .ft td.col-total.is-miss { color: var(--miss); background: var(--miss-bg); }
+
+  /* Tracked row */
+  .ft tr.row-tracked th { color: var(--ink-soft); }
+  .ft tr.row-tracked td { text-align: center; padding: 10px 8px; }
+  .ft tr.row-tracked td.col-goal {
+    font: 500 12.5px/1.2 "JetBrains Mono", ui-monospace, monospace;
+    color: var(--ink-soft);
+  }
+  .ft-check {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    margin: 0;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .ft-check:hover { border-color: var(--accent); }
+  .ft-check:checked { background: var(--accent); border-color: var(--accent); }
+  .ft-check:checked::after {
+    content: "";
+    position: absolute;
+    left: 6px; top: 2.5px;
+    width: 5px; height: 9px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .ft-foot {
+    margin: 10px 4px 0;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 640px) {
+    .ft-weeknav { margin-left: 0; width: 100%; justify-content: space-between; }
+    .ft-weeklabel { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="ft-wrap">
+    <header class="ft-head">
+      <span class="ft-avatar">FT</span>
+      <h1 class="ft-title">Fitness</h1>
+      <div class="ft-weeknav">
+        <button type="button" class="ft-btn" id="ft-prev" aria-label="Previous week">‹ Prev</button>
+        <span class="ft-weeklabel" id="ft-weeklabel"></span>
+        <button type="button" class="ft-btn" id="ft-next" aria-label="Next week">Next ›</button>
+        <button type="button" class="ft-btn ft-btn-today" id="ft-thisweek">This Week</button>
+      </div>
+    </header>
+
+    <div class="ft-card">
+      <table class="ft" id="ft-table"></table>
+    </div>
+    <p class="ft-foot">Changes save automatically and sync across devices. Blank days are ignored in totals.</p>
+  </div>
+
+<script>
+(function fitnessBoard() {
+  'use strict';
+
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  /* total: how the weekly figure is derived from the day cells.
+     met:   'min' = total must reach the goal, 'max' = total must stay
+            at or under it (calories, weight, deficit). */
+  const METRICS = [
+    { key: 'run',      label: 'Run',        unit: 'km',       placeholder: '6 km',    total: 'sum',   suffix: ' km',   met: 'min', defaultGoal: '30 km' },
+    { key: 'gym',      label: 'Gym',        unit: 'session',  placeholder: 'Upper',   total: 'count', suffix: '',      met: 'min', defaultGoal: '3 sessions' },
+    { key: 'calories', label: 'Calories',   unit: 'kcal',     placeholder: '2250',    total: 'sum',   suffix: '',      met: 'max', defaultGoal: '15,750' },
+    { key: 'weight',   label: 'Weight',     unit: 'kg · avg', placeholder: '88.4 kg', total: 'avg',   suffix: ' kg',   met: 'max', defaultGoal: '87.5 kg' },
+    { key: 'deficit',  label: 'Deficit +/-',unit: 'kcal',     placeholder: '-450',    total: 'sum',   suffix: '',      met: 'max', defaultGoal: '-3,500 kcal' },
+  ];
+
+  const GOALS_KEY = 'pc-ops::fitness::goals::v1';
+  const weekKey = (iso) => 'pc-ops::fitness::week::' + iso;
+
+  // ---- Week maths ----------------------------------------------------
+  function mondayOf(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d;
+  }
+  function isoOf(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  function addDays(d, n) {
+    const c = new Date(d);
+    c.setDate(c.getDate() + n);
+    return c;
+  }
+  function weekLabel(monday) {
+    const sunday = addDays(monday, 6);
+    const fmt = (d, withYear) => d.getDate() + ' ' +
+      d.toLocaleString('en-AU', { month: 'short' }) + (withYear ? ' ' + d.getFullYear() : '');
+    const sameMonth = monday.getMonth() === sunday.getMonth() && monday.getFullYear() === sunday.getFullYear();
+    if (sameMonth) return monday.getDate() + ' – ' + fmt(sunday, true);
+    return fmt(monday, monday.getFullYear() !== sunday.getFullYear()) + ' – ' + fmt(sunday, true);
+  }
+
+  let viewMonday = mondayOf(new Date());
+
+  // ---- Storage -------------------------------------------------------
+  function readJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      const val = raw ? JSON.parse(raw) : null;
+      return val && typeof val === 'object' ? val : fallback;
+    } catch (_) { return fallback; }
+  }
+
+  function emptyWeek() {
+    const w = { tracked: [false, false, false, false, false, false, false] };
+    METRICS.forEach((m) => { w[m.key] = ['', '', '', '', '', '', '']; });
+    return w;
+  }
+
+  function loadWeek(iso)  { return Object.assign(emptyWeek(), readJSON(weekKey(iso), {})); }
+  function loadGoals() {
+    const stored = readJSON(GOALS_KEY, {});
+    const g = {};
+    METRICS.forEach((m) => { g[m.key] = (m.key in stored) ? stored[m.key] : m.defaultGoal; });
+    return g;
+  }
+
+  /* In-memory copy of the visible week + goals. Edits mutate these and
+     persist immediately; reading localStorage back on every keystroke
+     races the async save gate and can drop edits. */
+  let state = emptyWeek();
+  let goals = loadGoals();
+
+  /* sync.js disarms writes while remote data hasn't been painted yet
+     (canPersist false) so a stale DOM can't overwrite another device's
+     edit. Retry until the window opens; pages without sync.js just save. */
+  const pendingSaves = new Map();
+  function persist(key, obj) {
+    pendingSaves.set(key, JSON.stringify(obj));
+    flushSaves();
+  }
+  let saveRetry = null;
+  function flushSaves() {
+    if (!pendingSaves.size) return;
+    const p = window.__planner;
+    if (p && typeof p.canPersist === 'function' && !p.canPersist()) {
+      if (saveRetry) clearTimeout(saveRetry);
+      saveRetry = setTimeout(flushSaves, 800);
+      return;
+    }
+    pendingSaves.forEach((val, key) => localStorage.setItem(key, val));
+    pendingSaves.clear();
+  }
+
+  // ---- Parsing + totals ----------------------------------------------
+  function parseNum(s) {
+    if (s == null) return null;
+    const m = String(s).replace(/,/g, '').match(/[-+]?\d*\.?\d+/);
+    return m ? parseFloat(m[0]) : null;
+  }
+  function fmtNum(n) {
+    const rounded = Math.round(n * 10) / 10;
+    return rounded.toLocaleString('en-AU', { maximumFractionDigits: 1 });
+  }
+
+  function totalFor(metric, cells) {
+    const nums = cells.map(parseNum).filter((n) => n !== null);
+    const filled = cells.filter((c) => String(c).trim() !== '').length;
+
+    if (metric.total === 'count') {
+      if (!filled) return { text: '—', value: null };
+      return { text: filled + (filled === 1 ? ' session' : ' sessions'), value: filled };
+    }
+    if (!nums.length) return { text: '—', value: null };
+
+    let value;
+    if (metric.total === 'avg') value = nums.reduce((a, b) => a + b, 0) / nums.length;
+    else value = nums.reduce((a, b) => a + b, 0);
+
+    let text = fmtNum(value) + metric.suffix;
+    if (metric.key === 'deficit' && value > 0) text = '+' + text;
+    return { text, value };
+  }
+
+  function metClass(metric, totalValue, goalStr) {
+    if (totalValue === null) return '';
+    const goal = parseNum(goalStr);
+    if (goal === null) return '';
+    const met = metric.met === 'min' ? totalValue >= goal : totalValue <= goal;
+    return met ? 'is-met' : 'is-miss';
+  }
+
+  // ---- Render --------------------------------------------------------
+  const table = document.getElementById('ft-table');
+
+  function dayState(idx) {
+    const today = new Date();
+    const thisMonday = mondayOf(today);
+    if (isoOf(viewMonday) === isoOf(thisMonday)) {
+      const todayIdx = (today.getDay() + 6) % 7;
+      if (idx === todayIdx) return 'is-today';
+      if (idx > todayIdx) return 'is-future';
+      return '';
+    }
+    return viewMonday > today ? 'is-future' : '';
+  }
+
+  function render() {
+    state = loadWeek(isoOf(viewMonday));
+    goals = loadGoals();
+    paint();
+  }
+
+  function paint() {
+    const week = state;
+    document.getElementById('ft-weeklabel').textContent = weekLabel(viewMonday);
+
+    let html = '<thead><tr><th>Metric</th>';
+    DAYS.forEach((d, i) => {
+      const date = addDays(viewMonday, i);
+      html += '<th class="' + dayState(i) + '">' + d +
+              '<span class="ft-daynum">' + date.getDate() + ' ' +
+              date.toLocaleString('en-AU', { month: 'short' }) + '</span></th>';
+    });
+    html += '<th class="col-goal">Goal</th><th class="col-total">Total</th></tr></thead><tbody>';
+
+    METRICS.forEach((m) => {
+      const t = totalFor(m, week[m.key]);
+      const cls = metClass(m, t.value, goals[m.key]);
+      html += '<tr><th>' + m.label + '<span class="ft-unit">' + m.unit + '</span></th>';
+      week[m.key].forEach((val, i) => {
+        html += '<td class="' + dayState(i) + '"><input type="text" data-metric="' + m.key +
+                '" data-day="' + i + '" value="' + escapeAttr(val) + '" placeholder="' +
+                escapeAttr(m.placeholder) + '" autocomplete="off" /></td>';
+      });
+      html += '<td class="col-goal"><input type="text" data-goal="' + m.key + '" value="' +
+              escapeAttr(goals[m.key]) + '" autocomplete="off" /></td>';
+      html += '<td class="col-total ' + cls + '" data-total="' + m.key + '">' + t.text + '</td>';
+    });
+
+    // Tracked row
+    const trackedCount = week.tracked.filter(Boolean).length;
+    html += '<tr class="row-tracked"><th>Tracked<span class="ft-unit">full day logged</span></th>';
+    week.tracked.forEach((on, i) => {
+      html += '<td class="' + dayState(i) + '"><input type="checkbox" class="ft-check" data-track="' + i +
+              '"' + (on ? ' checked' : '') + ' aria-label="Tracked ' + DAYS[i] + '" /></td>';
+    });
+    html += '<td class="col-goal">7 days</td>';
+    html += '<td class="col-total' + (trackedCount === 7 ? ' is-met' : '') + '">' + trackedCount + ' / 7</td>';
+    html += '</tr></tbody>';
+
+    table.innerHTML = html;
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* Refresh only the computed cells while typing, so the input keeps focus. */
+  function refreshTotals() {
+    METRICS.forEach((m) => {
+      const cell = table.querySelector('[data-total="' + m.key + '"]');
+      if (!cell) return;
+      const t = totalFor(m, state[m.key]);
+      cell.textContent = t.text;
+      cell.className = 'col-total ' + metClass(m, t.value, goals[m.key]);
+    });
+    const trackedCell = table.querySelector('.row-tracked .col-total');
+    if (trackedCell) {
+      const n = state.tracked.filter(Boolean).length;
+      trackedCell.textContent = n + ' / 7';
+      trackedCell.className = 'col-total' + (n === 7 ? ' is-met' : '');
+    }
+  }
+
+  // ---- Events --------------------------------------------------------
+  table.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.dataset.metric !== undefined && el.dataset.day !== undefined) {
+      state[el.dataset.metric][Number(el.dataset.day)] = el.value;
+      persist(weekKey(isoOf(viewMonday)), state);
+      refreshTotals();
+    } else if (el.dataset.goal !== undefined) {
+      goals[el.dataset.goal] = el.value;
+      persist(GOALS_KEY, goals);
+      refreshTotals();
+    }
+  });
+
+  table.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.dataset.track === undefined) return;
+    state.tracked[Number(el.dataset.track)] = el.checked;
+    persist(weekKey(isoOf(viewMonday)), state);
+    refreshTotals();
+  });
+
+  document.getElementById('ft-prev').addEventListener('click', () => {
+    viewMonday = addDays(viewMonday, -7);
+    render();
+  });
+  document.getElementById('ft-next').addEventListener('click', () => {
+    viewMonday = addDays(viewMonday, 7);
+    render();
+  });
+  document.getElementById('ft-thisweek').addEventListener('click', () => {
+    viewMonday = mondayOf(new Date());
+    render();
+  });
+
+  /* Remote edits: sync.js writes the new value into localStorage and fires
+     a storage event. Repaint from storage unless the user is mid-edit
+     (sync.js's own idle reload covers that case). */
+  window.addEventListener('storage', (e) => {
+    if (!e.key || e.key.indexOf('pc-ops::fitness::') !== 0) return;
+    const a = document.activeElement;
+    if (a && table.contains(a) && a.matches('input')) return;
+    render();
+  });
+
+  render();
+})();
+</script>
+<script src="../shared/nav.js?v=1"></script>
+<script src="../shared/announcement.js"></script>
+</body>
+</html>

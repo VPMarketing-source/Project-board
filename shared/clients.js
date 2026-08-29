@@ -36,6 +36,15 @@ window.CLIENTS_REGISTRY = [
     pinned:   true,
   },
   {
+    id:       'fitness',
+    name:     'Fitness',
+    initials: 'FT',
+    sub:      'Weekly tracking',
+    href:     'clients/fitness.html',
+    accent:   '#2e7d5b',
+    pinned:   true,
+  },
+  {
     id:       'vpmarketing',
     name:     'VP Marketing',
     initials: 'VP',
