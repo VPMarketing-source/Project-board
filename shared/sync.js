@@ -157,7 +157,7 @@
   }
   window.__planner.seeded = false;
   window.__planner.canPersist = function () {
-    return window.__planner.seeded === true && unpaintedRemote === false;
+    return window.__planner.seeded === true && unpaintedRemote === false && staleCheckPending === false;
   };
 
   // ---- 2. Load Supabase CDN dynamically ------------------------------
@@ -310,6 +310,89 @@
           })
       .subscribe();
   }
+
+  // ---- 5b. Wake-up freshness check -----------------------------------
+  // A tab that sleeps (laptop lid closed, backgrounded overnight) silently
+  // loses the realtime socket and misses every change made elsewhere, yet
+  // its seeded flag still says localStorage is trustworthy. The first
+  // widget save after wake then pushes the whole stale copy over newer
+  // server data (this destroyed real edits on 2026-08-30 and 2026-08-31).
+  // Detect the sleep via a timer gap plus wake events, disarm canPersist()
+  // while the authoritative rows are re-fetched, repaint through the usual
+  // markUnpainted path if anything differs, and rebuild the socket.
+  // Fail-open like seed(): a network error re-arms writes so an offline
+  // board stays editable rather than read-only.
+  let staleCheckPending = false;
+  let lastAliveAt = Date.now();
+  const WAKE_GAP_MS = 45 * 1000;
+
+  setInterval(() => {
+    if (Date.now() - lastAliveAt > WAKE_GAP_MS) recheckFreshness();
+    lastAliveAt = Date.now();
+  }, 10 * 1000);
+
+  function realtimeDead() {
+    return !realtimeChannel || realtimeChannel.state !== 'joined';
+  }
+
+  function maybeRecheck() {
+    if (Date.now() - lastAliveAt > WAKE_GAP_MS || realtimeDead()) recheckFreshness();
+  }
+
+  async function recheckFreshness() {
+    if (!client || staleCheckPending || !window.__planner.seeded) return;
+    staleCheckPending = true;
+    window.__planner.status = 'syncing';
+    updateIndicator();
+    try {
+      const { data, error } = await client
+        .from(TABLE)
+        .select('key,value')
+        .eq('client_id', CLIENT_ID);
+      if (error) throw error;
+      let anyChanged = false;
+      (data || []).forEach((row) => {
+        const v = row.value;
+        const remoteStr = (v && typeof v === 'object' && 'raw' in v)
+          ? v.raw
+          : (typeof v === 'string' ? v : JSON.stringify(v));
+        if (remoteStr == null) return;
+        // Our own writes that haven't round-tripped yet stay authoritative.
+        const writtenAt = recentlyWritten.get(row.key);
+        if (writtenAt && Date.now() - writtenAt < 10000) return;
+        if (pendingUpserts.has(row.key)) return;
+        const localStr = window.localStorage.getItem(row.key);
+        if (localStr !== remoteStr) {
+          anyChanged = true;
+          origSetItem.call(window.localStorage, row.key, remoteStr);
+          try {
+            window.dispatchEvent(new StorageEvent('storage', { key: row.key, newValue: remoteStr, oldValue: localStr }));
+          } catch (_) {}
+        }
+      });
+      window.__planner.status = 'synced';
+      if (anyChanged) markUnpainted();
+    } catch (_) {
+      window.__planner.status = 'offline';
+    } finally {
+      staleCheckPending = false;
+      lastAliveAt = Date.now();
+      updateIndicator();
+    }
+    // The socket rarely survives a sleep; rebuild it if it isn't joined.
+    try {
+      if (realtimeDead()) {
+        if (realtimeChannel) { try { client.removeChannel(realtimeChannel); } catch (_) {} }
+        setupRealtime();
+      }
+    } catch (_) {}
+  }
+
+  window.addEventListener('focus', maybeRecheck);
+  window.addEventListener('online', () => recheckFreshness());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') maybeRecheck();
+  });
 
   // ---- 6. Tiny sync indicator in the header --------------------------
   function ensureIndicator() {
