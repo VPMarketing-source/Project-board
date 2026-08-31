@@ -324,10 +324,18 @@
   // board stays editable rather than read-only.
   let staleCheckPending = false;
   let lastAliveAt = Date.now();
+  let lastRecheckAt = 0;
   const WAKE_GAP_MS = 45 * 1000;
+  const RECHECK_MIN_GAP_MS = 30 * 1000; // don't hammer the API when offline
 
   setInterval(() => {
-    if (Date.now() - lastAliveAt > WAKE_GAP_MS) recheckFreshness();
+    // A gap means the tab's timers were suspended (sleep); a dead channel
+    // means the socket died even though the tab stayed awake and focused —
+    // both leave localStorage silently stale, so both trigger a recheck.
+    const gap = Date.now() - lastAliveAt > WAKE_GAP_MS;
+    const dead = window.__planner.seeded && realtimeDead() &&
+                 Date.now() - lastRecheckAt > RECHECK_MIN_GAP_MS;
+    if (gap || dead) recheckFreshness();
     lastAliveAt = Date.now();
   }, 10 * 1000);
 
@@ -342,6 +350,7 @@
   async function recheckFreshness() {
     if (!client || staleCheckPending || !window.__planner.seeded) return;
     staleCheckPending = true;
+    lastRecheckAt = Date.now();
     window.__planner.status = 'syncing';
     updateIndicator();
     try {
