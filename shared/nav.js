@@ -113,7 +113,7 @@
            the fixed bar (a translucent nav read as a "gap" over the planner). */
         background: #ffffff;
         border-bottom: 1px solid rgba(17,19,26,0.06);
-        font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #2b2f3a;
       }
       .pc-nav-spacer { height: 40px; }

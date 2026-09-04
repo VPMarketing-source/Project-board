@@ -6,7 +6,7 @@
 <title>VP Marketing — Operating System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
 <script src="shared/clients.js?v=4"></script>
 <style>
   :root {
@@ -23,9 +23,13 @@
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 15px;
+    line-height: 1.6;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     min-height: 100vh;
   }
   .wrap {
@@ -439,12 +443,12 @@
     padding: 16px 22px 20px;
   }
   .notes-mirror-label {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: inherit;
     font-size: 11px;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #b86040;
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 10px;
   }
   .notes-mirror-body {

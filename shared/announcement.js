@@ -100,7 +100,7 @@
         background: #fdf6dd;
         border-bottom: 1px solid #e8d9a0;
         box-shadow: 0 1px 0 rgba(17,19,26,0.03);
-        font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         transition: box-shadow 180ms ease;
       }
       .pc-announce.is-saved { box-shadow: inset 3px 0 0 #16a34a; }
