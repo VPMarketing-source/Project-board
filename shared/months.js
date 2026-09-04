@@ -240,7 +240,7 @@
         color: #8a7340;
         padding: 12px 16px;
         border-radius: 12px;
-        font: 600 11px/1 'Poppins', -apple-system, sans-serif;
+        font: 600 11px/1 'Inter', -apple-system, sans-serif;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         cursor: pointer;

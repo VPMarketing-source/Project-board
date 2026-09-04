@@ -61,7 +61,7 @@
   .key-dates { grid-row: auto; grid-column: 1; position: static; }
 }
 .planner-cal {
-    font-family: 'Poppins', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     color: var(--cal-ink);
     margin: 20px 0 28px;
     background: #fff;
