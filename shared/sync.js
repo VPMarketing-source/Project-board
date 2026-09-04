@@ -47,6 +47,40 @@
   let unpaintedRemote = false;
   let repaintBlocked = false;
 
+  // ---- 0. 3-way merge for dict-blob keys -----------------------------
+  // The calendar keeps a whole week/board of content in ONE key (a JSON
+  // object of {cellKey: html}). A plain last-write-wins upsert means any
+  // save ships this tab's copy of EVERY entry — so if the tab is even
+  // slightly behind on some other entry, the write reverts it. Instead,
+  // for object-valued keys, we re-fetch the live server object at write
+  // time and re-apply only the entries THIS tab actually changed since it
+  // last synced (`baseline`). Entries the tab didn't touch keep the
+  // server's value, so a stale tab can no longer clobber another device.
+  function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  const baseline = Object.create(null);   // key -> parsed object last known to match the server
+  function recordBaseline(key, str) {
+    try { const v = JSON.parse(str); baseline[key] = isPlainObject(v) ? v : null; }
+    catch (_) { baseline[key] = null; }
+  }
+  function threeWayMerge(base, local, remote) {
+    const out = Object.assign(Object.create(null), remote);
+    for (const k in local) { if (!eq(local[k], base ? base[k] : undefined)) out[k] = local[k]; }       // our edits/adds win
+    if (base) for (const k in base) { if (!(k in local) && eq(remote[k], base[k])) delete out[k]; }    // our deletions
+    let pulled = false;
+    for (const k in out) { if (!eq(out[k], local[k])) { pulled = true; break; } }                      // server had newer entries
+    return { merged: out, pulled };
+  }
+  async function fetchRemoteDict(key) {
+    const { data, error } = await client.from(TABLE).select('value').eq('client_id', CLIENT_ID).eq('key', key).limit(1);
+    if (error) throw error;
+    if (!data || !data.length) return null;
+    const v = data[0].value;
+    const raw = (v && typeof v === 'object' && 'raw' in v) ? v.raw : (typeof v === 'string' ? v : JSON.stringify(v));
+    if (raw == null) return null;
+    try { const p = JSON.parse(raw); return isPlainObject(p) ? p : null; } catch (_) { return null; }
+  }
+
   Storage.prototype.setItem = function (key, value) {
     origSetItem.call(this, key, value);
     if (this === window.localStorage && typeof key === 'string' && SYNC_KEY_RE.test(key)) {
@@ -178,18 +212,41 @@
   // ---- 3. Push pending writes ----------------------------------------
   async function flushUpserts() {
     if (!client || pendingUpserts.size === 0) return;
-    const rows = [];
-    const deletes = [];
-    pendingUpserts.forEach((val, key) => {
-      if (val === null) deletes.push(key);
-      else rows.push({ client_id: CLIENT_ID, key, value: { raw: val }, updated_at: new Date().toISOString() });
-      recentlyWritten.set(key, Date.now());
-    });
+    const entries = [];
+    pendingUpserts.forEach((val, key) => entries.push([key, val]));
     pendingUpserts.clear();
     window.__planner.pending = 0;
     window.__planner.status = 'syncing';
     updateIndicator();
+
+    const rows = [];
+    const deletes = [];
+    let pulledAny = false;
     try {
+      for (const [key, val] of entries) {
+        if (val === null) { deletes.push(key); recentlyWritten.set(key, Date.now()); continue; }
+        let outVal = val;
+        // Object-valued keys with a known base → merge against the live
+        // server copy so we only overwrite entries THIS tab changed.
+        if (baseline[key] && isPlainObject(baseline[key])) {
+          let local = null; try { local = JSON.parse(val); } catch (_) {}
+          if (isPlainObject(local)) {
+            const remote = await fetchRemoteDict(key);      // throws on network error → whole flush retries
+            if (isPlainObject(remote)) {
+              const { merged, pulled } = threeWayMerge(baseline[key], local, remote);
+              outVal = JSON.stringify(merged);
+              // Adopt the merge locally so our copy matches the server. (Uses
+              // origSetItem so it doesn't re-queue itself.) Baseline is only
+              // advanced on confirmed write, below.
+              if (outVal !== val) origSetItem.call(window.localStorage, key, outVal);
+              if (pulled) pulledAny = true;
+            }
+          }
+        }
+        rows.push({ client_id: CLIENT_ID, key, value: { raw: outVal }, updated_at: new Date().toISOString() });
+        recentlyWritten.set(key, Date.now());
+      }
+
       if (rows.length) {
         const { error } = await client.from(TABLE).upsert(rows, { onConflict: 'client_id,key' });
         if (error) throw error;
@@ -198,11 +255,18 @@
         const { error } = await client.from(TABLE).delete().eq('client_id', CLIENT_ID).in('key', deletes);
         if (error) throw error;
       }
+      // Confirmed on the server → this is now our synced base.
+      rows.forEach((r) => { try { const p = JSON.parse(r.value.raw); if (isPlainObject(p)) baseline[r.key] = p; } catch (_) {} });
+      deletes.forEach((k) => { baseline[k] = null; });
       window.__planner.status = 'synced';
       window.__planner.lastSynced = Date.now();
+      // A merge pulled another device's entries in → our DOM is stale for
+      // them; refresh through the usual (idle-aware) repaint path.
+      if (pulledAny) markUnpainted();
     } catch (e) {
-      rows.forEach((r) => pendingUpserts.set(r.key, r.value.raw));
-      deletes.forEach((k) => pendingUpserts.set(k, null));
+      // Re-queue everything we took (unless a newer edit already replaced it)
+      // so nothing is lost; retry shortly.
+      entries.forEach(([key, val]) => { if (!pendingUpserts.has(key)) pendingUpserts.set(key, val); });
       window.__planner.pending = pendingUpserts.size;
       window.__planner.status = 'offline';
       setTimeout(flushUpserts, 5000);
@@ -228,6 +292,7 @@
           ? row.value.raw
           : (typeof row.value === 'string' ? row.value : JSON.stringify(row.value));
         if (remoteStr == null) return;
+        recordBaseline(row.key, remoteStr);           // this server value is now our merge base
         const localStr = window.localStorage.getItem(row.key);
         if (localStr !== remoteStr) {
           anyChanged = true;
@@ -287,6 +352,7 @@
             const writtenAt = recentlyWritten.get(row.key);
             if (writtenAt && Date.now() - writtenAt < 3000) return;
             if (payload.eventType === 'DELETE') {
+              baseline[row.key] = null;
               if (window.localStorage.getItem(row.key) != null) {
                 origRemoveItem.call(window.localStorage, row.key);
                 try { window.dispatchEvent(new StorageEvent('storage', { key: row.key, newValue: null })); } catch (_) {}
@@ -299,6 +365,7 @@
               ? v.raw
               : (typeof v === 'string' ? v : JSON.stringify(v));
             if (remoteStr == null) return;
+            recordBaseline(row.key, remoteStr);           // keep the merge base current
             const localStr = window.localStorage.getItem(row.key);
             if (localStr !== remoteStr) {
               origSetItem.call(window.localStorage, row.key, remoteStr);
@@ -370,6 +437,7 @@
         const writtenAt = recentlyWritten.get(row.key);
         if (writtenAt && Date.now() - writtenAt < 10000) return;
         if (pendingUpserts.has(row.key)) return;
+        recordBaseline(row.key, remoteStr);           // refresh the merge base
         const localStr = window.localStorage.getItem(row.key);
         if (localStr !== remoteStr) {
           anyChanged = true;
