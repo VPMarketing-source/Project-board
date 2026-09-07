@@ -13,9 +13,11 @@
    simple request/response tools.
 
    Tools:
-     - get_calendar_week   read one week's sections x days as clean text
-     - get_priorities      outstanding (unchecked) items across the next weeks
-     - add_calendar_item   append a task/note to a specific day
+     - get_calendar_week    read one week's sections x days as clean text
+     - get_priorities       outstanding (unchecked) items across the next weeks
+     - add_calendar_item    append a task/note to a specific day
+     - delete_calendar_item remove a line from a day by its text
+     - edit_calendar_item   change a line's text, keeping its checkbox state
    ========================================================================= */
 
 const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
@@ -117,6 +119,38 @@ function htmlToText(html) {
   return lines.join('\n').trim();
 }
 
+/* ── Cell HTML → top-level blocks ───────────────────────────────────────
+   A day-cell is a flat run of block elements (pc-todo divs, plain divs,
+   dividers). Splitting on top-level <div> boundaries by depth gives each
+   visible line as one block string, so delete/edit can act on a whole
+   line without touching its neighbours. Text between blocks (bare text
+   nodes, <br> runs) is kept as its own pseudo-block. */
+function splitBlocks(html) {
+  if (!html || typeof html !== 'string') return [];
+  const out = [];
+  let depth = 0, start = 0, i = 0;
+  const push = (end) => { const s = html.slice(start, end); if (s.trim()) out.push(s); };
+  while (i < html.length) {
+    const open = /^<div\b/i.test(html.slice(i, i + 5));
+    const close = /^<\/div>/i.test(html.slice(i, i + 6));
+    if (open) {
+      if (depth === 0 && i > start) { push(i); start = i; }
+      depth++;
+      i = html.indexOf('>', i) + 1 || html.length;
+      continue;
+    }
+    if (close) {
+      depth = Math.max(0, depth - 1);
+      i += 6;
+      if (depth === 0) { push(i); start = i; }
+      continue;
+    }
+    i++;
+  }
+  if (start < html.length) push(html.length);
+  return out;
+}
+
 /* ── Calendar reads ─────────────────────────────────────────────────── */
 async function loadAll() {
   const [sections, secfree, freeform] = await Promise.all([
@@ -172,6 +206,33 @@ const TOOLS = [
       properties: {
         weeks: { type: 'number', description: 'How many weeks ahead to scan, starting from the current week. Default 2.' },
       },
+    },
+  },
+  {
+    name: 'delete_calendar_item',
+    description: "Remove one line (to-do or note) from a day by its text. Matches the line's visible text, case-insensitively; exact match wins, otherwise a single containing match. Refuses when the text matches several lines — give more of the text.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        day: { type: 'string', description: 'The day the line is on, as YYYY-MM-DD.' },
+        text: { type: 'string', description: 'The visible text of the line to remove (or a unique part of it).' },
+        section: { type: 'string', description: 'Which section (row) it is under, by name. Searches every section when omitted.' },
+      },
+      required: ['day', 'text'],
+    },
+  },
+  {
+    name: 'edit_calendar_item',
+    description: "Change one line's text on a day, keeping its checkbox and checked state. Same matching rules as delete_calendar_item.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        day: { type: 'string', description: 'The day the line is on, as YYYY-MM-DD.' },
+        text: { type: 'string', description: 'The current visible text of the line (or a unique part of it).' },
+        new_text: { type: 'string', description: 'What the line should say instead.' },
+        section: { type: 'string', description: 'Which section (row) it is under, by name. Searches every section when omitted.' },
+      },
+      required: ['day', 'text', 'new_text'],
     },
   },
   {
@@ -232,6 +293,63 @@ async function callTool(name, args) {
     }
     if (!found) out.push('\nNothing outstanding — all clear, or nothing is planned yet.');
     return out.join('\n');
+  }
+
+  if (name === 'delete_calendar_item' || name === 'edit_calendar_item') {
+    const day = parseYmd(args.day);
+    if (!day) throw new Error("'day' must be a date like 2026-09-08");
+    const wanted = String(args.text || '').trim();
+    if (!wanted) throw new Error("'text' is required");
+    const newText = name === 'edit_calendar_item' ? String(args.new_text || '').trim() : '';
+    if (name === 'edit_calendar_item' && !newText) throw new Error("'new_text' is required");
+
+    const dayKey = ymd(day);
+    const mondayKey = ymd(mondayOf(day));
+    const data = await loadAll();
+    const secs = data.sections[mondayKey] || [];
+    const targets = args.section
+      ? secs.filter((s) => (s.name || '').toLowerCase() === String(args.section).toLowerCase())
+      : secs;
+    if (!targets.length) throw new Error(args.section ? 'No section named "' + args.section + '" that week.' : 'That week has no sections.');
+
+    // Every match across the searched cells: { cellKey, block, text, secName }.
+    const matches = [];
+    const want = wanted.toLowerCase();
+    targets.forEach((sec) => {
+      const cellKey = dayKey + '::' + sec.id;
+      const html = data.secfree[cellKey] || '';
+      splitBlocks(html).forEach((block) => {
+        const t = htmlToText(block).replace(/^\[[x ]\]\s*/, '').trim();
+        if (!t) return;
+        const lower = t.toLowerCase();
+        if (lower === want || lower.indexOf(want) !== -1) matches.push({ cellKey, block, text: t, secName: sec.name || 'Section', exact: lower === want });
+      });
+    });
+    const exact = matches.filter((m) => m.exact);
+    const pick = exact.length === 1 ? exact[0] : (matches.length === 1 ? matches[0] : null);
+    if (!pick) {
+      if (!matches.length) throw new Error('No line on ' + niceDate(day) + ' matches "' + wanted + '".');
+      throw new Error(matches.length + ' lines match "' + wanted + '" on ' + niceDate(day) + ' (' +
+        matches.slice(0, 4).map((m) => '"' + m.text.slice(0, 60) + '"').join(', ') + '). Give more of the text.');
+    }
+
+    const html = data.secfree[pick.cellKey] || '';
+    if (name === 'delete_calendar_item') {
+      data.secfree[pick.cellKey] = html.replace(pick.block, '');
+      await writeKey(SECFREE_KEY, data.secfree);
+      return 'Removed from ' + niceDate(day) + ' under "' + pick.secName + '": ' + pick.text + '\n\nThe planner live-syncs.';
+    }
+    const safe = newText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let newBlock;
+    if (/pc-todo-text/.test(pick.block)) {
+      // Keep the block (and its checked state); swap only the label span's content.
+      newBlock = pick.block.replace(/(<span[^>]*class="[^"]*pc-todo-text[^"]*"[^>]*>)[\s\S]*?(<\/span>)/, '$1' + safe.replace(/\$/g, '$$$$') + '$2');
+    } else {
+      newBlock = '<div>' + safe + '</div>';
+    }
+    data.secfree[pick.cellKey] = html.replace(pick.block, newBlock);
+    await writeKey(SECFREE_KEY, data.secfree);
+    return 'Changed on ' + niceDate(day) + ' under "' + pick.secName + '": "' + pick.text + '" is now "' + newText + '".\n\nThe planner live-syncs.';
   }
 
   if (name === 'add_calendar_item') {
