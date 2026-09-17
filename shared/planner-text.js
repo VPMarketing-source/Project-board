@@ -578,9 +578,9 @@
     // than flatten it (which turns a checklist into inline struck-through
     // text), keep its structure and just scrub the junk the browser adds on
     // copy: style attributes, foreign classes, ids, meta/script nodes.
-    const KEEP_CLASS = /^(pc-todo|pc-todo-box|pc-todo-text|pc-section|pc-drop|pc-drop-head|pc-drop-title|pc-drop-body|pc-drop-toggle|pc-divider|pc-fold-head|annotated|is-checked|is-collapsed|is-folded|pc-fold-hidden)$/;
+    const KEEP_CLASS = /^(pc-todo|pc-todo-box|pc-todo-text|pc-section|pc-drop|pc-drop-head|pc-drop-title|pc-drop-body|pc-drop-toggle|pc-divider|pc-fold-head|pc-head|pc-b|pc-fg-(?:green|black|red)|annotated|is-checked|is-collapsed|is-folded|is-done|is-past|pc-fold-hidden)$/;
     function looksInternal(html) {
-      return /\bpc-(todo|section|drop|divider|fold)\b|cwg-col-free|pc-todo-box/.test(html || '');
+      return /\bpc-(todo|section|drop|divider|fold|head|b|fg-\w+)\b|cwg-col-free|pc-todo-box/.test(html || '');
     }
     function lightCleanInternal(html) {
       const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -629,7 +629,9 @@
         }
         if (!inline) { todo.remove(); return; }        // empty checkbox row → drop
         const checked = box.hasAttribute('checked') || todo.classList.contains('is-checked');
-        todo.className = 'pc-todo' + (checked ? ' is-checked' : '');
+        // Keep the per-item styling the MCP wrote (bold/colour) across a paste.
+        const styling = [...todo.classList].filter((c) => /^(pc-b|pc-fg-(?:green|black|red))$/.test(c));
+        todo.className = ['pc-todo'].concat(checked ? ['is-checked'] : []).concat(styling).join(' ');
         todo.removeAttribute('style');
         const nb = document.createElement('input');
         nb.type = 'checkbox'; nb.className = 'pc-todo-box'; nb.setAttribute('contenteditable', 'false');

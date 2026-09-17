@@ -340,3 +340,48 @@
   .note-popup-save:hover { background: #1c47cc; }
   .note-popup-remove { color: #b86040; border-color: rgba(184,96,64,0.25); }
   .note-popup-remove:hover { background: rgba(184,96,64,0.08); }
+
+  /* ── Per-item styling (written by the calendar MCP) ──────────────────
+     Agent Board writes headings and timed items with heading / bold /
+     color; those land on the block as .pc-head, .pc-b and .pc-fg-*. The
+     colour rides a custom property so a struck-through line keeps it
+     instead of fading to the generic "done" grey.
+
+     Strike-through is decided here at render time, never stored, by
+     shared/planner-style.js: .is-past for a timed item whose time has
+     gone, .is-done for a heading or block title whose tasks are all
+     ticked. A ticked task keeps the existing .is-checked rule. */
+  .pc-b,
+  .pc-todo.pc-b .pc-todo-text { font-weight: 700; }
+
+  .pc-fg-green { --pc-fg: #1c7a45; }
+  .pc-fg-black { --pc-fg: #11131a; }
+  .pc-fg-red   { --pc-fg: #c0392b; }
+  .pc-fg-green, .pc-fg-black, .pc-fg-red { color: var(--pc-fg); }
+  .pc-todo.pc-fg-green .pc-todo-text,
+  .pc-todo.pc-fg-black .pc-todo-text,
+  .pc-todo.pc-fg-red   .pc-todo-text { color: var(--pc-fg); }
+
+  /* A heading is a label, not a row: no checkbox affordance, a little air
+     above it, and it keeps whatever colour it was written with. */
+  .pc-head {
+    margin-top: 4px;
+    letter-spacing: 0.01em;
+  }
+  .pc-head:first-child { margin-top: 0; }
+
+  /* Struck through, colour and weight intact. */
+  .pc-head.is-done,
+  .pc-drop.is-done > .pc-drop-head .pc-drop-title,
+  .is-past,
+  .pc-todo.is-past .pc-todo-text {
+    text-decoration: line-through;
+    text-decoration-color: currentColor;
+  }
+  /* A ticked styled task stays its own colour rather than going grey. */
+  .pc-todo.is-checked.pc-fg-green .pc-todo-text,
+  .pc-todo.is-checked.pc-fg-black .pc-todo-text,
+  .pc-todo.is-checked.pc-fg-red   .pc-todo-text {
+    color: var(--pc-fg);
+    text-decoration-color: currentColor;
+  }

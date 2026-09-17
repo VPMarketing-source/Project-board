@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Per-item styling + strike-through — tests</title>
+<!--
+  Browser test for the planner's per-item styling: the classes the calendar
+  MCP writes (.pc-head / .pc-b / .pc-fg-*) and the strike-through the planner
+  derives itself (shared/planner-style.js). Loads the REAL stylesheet and the
+  REAL decorator, builds day cells out of exactly the HTML api/mcp.js stores,
+  and asserts on computed styles.
+
+  Run: open this file over the dev server, e.g.
+    http://localhost:5555/tests/planner-style.test.html
+  A real browser is required — the assertions read getComputedStyle.
+
+  Results render on the page and are also exposed on window.__TEST_RESULTS.
+-->
+<link rel="stylesheet" href="../shared/planner-text.css" />
+<style>
+  body { font-family: system-ui, sans-serif; padding: 24px; color: #11131a; max-width: 900px; }
+  h1 { font-size: 18px; }
+  .cwg-col-free { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-height: 40px; font-size: 14px; line-height: 1.5; margin-bottom: 10px; }
+  #summary { font-weight: 700; margin: 12px 0; }
+  #out { background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px; white-space: pre-wrap; font: 12px/1.6 ui-monospace, monospace; }
+  .ok { color: #3fb950; } .bad { color: #f85149; }
+</style>
+</head>
+<body>
+<h1>Per-item styling + strike-through</h1>
+<div id="stage"></div>
+<div id="summary">running…</div>
+<pre id="out"></pre>
+
+<script src="../shared/planner-style.js"></script>
+<script>
+(function () {
+  const results = [];
+  const stage = document.getElementById('stage');
+
+  /* Exactly what api/mcp.js writes. */
+  const TODO = (text, checked, cls) =>
+    '<div class="pc-todo' + (checked ? ' is-checked' : '') + (cls ? ' ' + cls : '') + '">' +
+    '<input type="checkbox" class="pc-todo-box" contenteditable="false"' + (checked ? ' checked' : '') + '>' +
+    '<span class="pc-todo-text">' + text + '</span></div>';
+  const LINE = (text, cls) => '<div' + (cls ? ' class="' + cls + '"' : '') + '>' + text + '</div>';
+
+  function ymd(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  const TODAY = ymd(new Date());
+  const TOMORROW = ymd(new Date(Date.now() + 86400000));
+  const hhmm = (offsetMinutes) => {
+    const d = new Date(Date.now() + offsetMinutes * 60000);
+    const h = d.getHours(), m = d.getMinutes();
+    const ap = h < 12 ? 'am' : 'pm';
+    const h12 = ((h + 11) % 12) + 1;
+    return h12 + ':' + String(m).padStart(2, '0') + ap;
+  };
+
+  function cell(dayKey, html) {
+    const el = document.createElement('div');
+    el.className = 'cwg-col-free';
+    el.setAttribute('contenteditable', 'true');
+    el.dataset.key = dayKey;
+    el.innerHTML = html;
+    stage.appendChild(el);
+    window.PlannerStyle.decorateCell(el);
+    return el;
+  }
+  const struck = (el) => getComputedStyle(el).textDecorationLine.indexOf('line-through') !== -1;
+  const color = (el) => getComputedStyle(el).color;
+  const bold = (el) => Number(getComputedStyle(el).fontWeight) >= 700;
+
+  function test(name, fn) {
+    try { fn(); results.push([true, name]); }
+    catch (e) { results.push([false, name + ' — ' + e.message]); }
+  }
+  function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+
+  /* ── A heading renders as a heading, green and bold, with no checkbox ── */
+  test('heading: green, bold, no checkbox', () => {
+    const c = cell(TODAY, LINE('VP MARKETING', 'pc-head pc-b pc-fg-green'));
+    const head = c.querySelector('.pc-head');
+    assert(!c.querySelector('input'), 'a heading must have no checkbox affordance');
+    assert(bold(head), 'expected bold');
+    assert(color(head) === 'rgb(28, 122, 69)', 'expected green, got ' + color(head));
+  });
+
+  test('heading: black variant', () => {
+    const c = cell(TODAY, LINE('PERSONAL', 'pc-head pc-b pc-fg-black'));
+    assert(color(c.querySelector('.pc-head')) === 'rgb(17, 19, 26)', 'expected black');
+  });
+
+  /* ── A timed item: bold red, no checkbox, struck once its time passes ── */
+  test('timed item: bold red with no checkbox, not struck before its time', () => {
+    const c = cell(TODAY, LINE(hhmm(90) + ' - Call Marlene', 'pc-b pc-fg-red'));
+    const line = c.querySelector('.pc-b');
+    assert(!c.querySelector('input'), 'no checkbox expected');
+    assert(bold(line), 'expected bold');
+    assert(color(line) === 'rgb(192, 57, 43)', 'expected red, got ' + color(line));
+    assert(!struck(line), 'must not be struck before its time');
+  });
+
+  test('timed item: struck once its time has passed, keeping red and bold', () => {
+    const c = cell(TODAY, LINE(hhmm(-90) + ' - Call Marlene', 'pc-b pc-fg-red'));
+    const line = c.querySelector('.pc-b');
+    assert(struck(line), 'expected a line through a passed time');
+    assert(bold(line) && color(line) === 'rgb(192, 57, 43)', 'must keep its red and bold');
+  });
+
+  test('timed item on a future day is never struck', () => {
+    const c = cell(TOMORROW, LINE('7:00am - Flight', 'pc-b pc-fg-red'));
+    assert(!struck(c.querySelector('.pc-b')), 'tomorrow has not happened yet');
+  });
+
+  test('a leading bare number is not a time', () => {
+    const c = cell(TODAY, LINE('3 emails to send', 'pc-b'));
+    assert(!struck(c.querySelector('.pc-b')), '"3 emails" must not read as 3 o’clock');
+  });
+
+  test('a time range strikes on its END time', () => {
+    const early = cell(TODAY, LINE(hhmm(-120) + ' - ' + hhmm(60) + ' Workshop', 'pc-b pc-fg-red'));
+    assert(!struck(early.querySelector('.pc-b')), 'still running');
+    const over = cell(TODAY, LINE(hhmm(-120) + ' - ' + hhmm(-30) + ' Workshop', 'pc-b pc-fg-red'));
+    assert(struck(over.querySelector('.pc-b')), 'finished');
+  });
+
+  /* ── Ticking ─────────────────────────────────────────────────────── */
+  test('a ticked task is struck through in place', () => {
+    const c = cell(TODAY, TODO('Send the invoice', true));
+    const text = c.querySelector('.pc-todo-text');
+    assert(struck(text), 'expected a struck ticked task');
+    assert(c.querySelectorAll('.pc-todo').length === 1, 'nothing is moved or removed');
+  });
+
+  test('a ticked styled task keeps its colour', () => {
+    const c = cell(TODAY, TODO('Styled task', true, 'pc-b pc-fg-red'));
+    const text = c.querySelector('.pc-todo-text');
+    assert(struck(text), 'expected struck');
+    assert(color(text) === 'rgb(192, 57, 43)', 'expected to keep red, got ' + color(text));
+  });
+
+  test('a heading strikes through once every task under it is ticked, keeping its colour', () => {
+    const c = cell(TODAY,
+      LINE('VP MARKETING', 'pc-head pc-b pc-fg-green') + TODO('One', true) + TODO('Two', false));
+    const head = c.querySelector('.pc-head');
+    assert(!struck(head), 'one task still open');
+
+    // Tick the last one the way the planner does, then re-decorate.
+    const open = [...c.querySelectorAll('.pc-todo')].find((t) => !t.classList.contains('is-checked'));
+    open.classList.add('is-checked');
+    window.PlannerStyle.decorateCell(c);
+    assert(struck(head), 'expected the heading to strike through');
+    assert(color(head) === 'rgb(28, 122, 69)', 'the heading must stay green, got ' + color(head));
+    assert(c.querySelectorAll('.pc-todo').length === 2, 'nothing is moved or removed');
+  });
+
+  test('a heading only counts the tasks up to the next heading', () => {
+    const c = cell(TODAY,
+      LINE('DONE BLOCK', 'pc-head pc-b pc-fg-green') + TODO('a', true) +
+      LINE('OPEN BLOCK', 'pc-head pc-b pc-fg-black') + TODO('b', false));
+    const [first, second] = c.querySelectorAll('.pc-head');
+    assert(struck(first), 'the first heading’s only task is ticked');
+    assert(!struck(second), 'the second heading still has an open task');
+  });
+
+  test('a heading with no tasks under it is never struck', () => {
+    const c = cell(TODAY, LINE('WEDDING', 'pc-head pc-b pc-fg-black') + LINE('a note'));
+    assert(!struck(c.querySelector('.pc-head')), 'nothing to complete');
+  });
+
+  test('a multi-step block title strikes once every task in it is ticked', () => {
+    const drop =
+      '<div class="pc-drop"><div class="pc-drop-head"><span class="pc-drop-toggle"></span>' +
+      '<span class="pc-drop-title">Launch checklist</span></div>' +
+      '<div class="pc-drop-body">' + TODO('step one', true) + TODO('step two', false) + '</div></div>';
+    const c = cell(TODAY, drop);
+    const title = c.querySelector('.pc-drop-title');
+    assert(!struck(title), 'a step is still open');
+    c.querySelectorAll('.pc-drop-body .pc-todo').forEach((t) => t.classList.add('is-checked'));
+    window.PlannerStyle.decorateCell(c);
+    assert(struck(title), 'expected the block title to strike through');
+  });
+
+  /* ── Plain items are untouched ───────────────────────────────────── */
+  test('an item written without styling keeps the plain rendering', () => {
+    const c = cell(TODAY, TODO('Plain task', false) + LINE('Plain note'));
+    const text = c.querySelector('.pc-todo-text');
+    const note = c.querySelectorAll('div')[c.querySelectorAll('div').length - 1];
+    assert(!bold(text) && !struck(text), 'a plain task is plain');
+    assert(!bold(note) && !struck(note), 'a plain note is plain');
+    assert(!!c.querySelector('.pc-todo-box'), 'a plain task keeps its checkbox');
+  });
+
+  /* ── Report ──────────────────────────────────────────────────────── */
+  const pass = results.filter((r) => r[0]).length;
+  const fail = results.length - pass;
+  document.getElementById('out').innerHTML = results
+    .map((r) => '<span class="' + (r[0] ? 'ok' : 'bad') + '">' + (r[0] ? 'ok   ' : 'FAIL ') + r[1] + '</span>')
+    .join('\n');
+  document.getElementById('summary').textContent = pass + ' passed, ' + fail + ' failed';
+  window.__TEST_RESULTS = { pass, fail, results };
+})();
+</script>
+</body>
+</html>
