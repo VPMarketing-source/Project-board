@@ -4,18 +4,18 @@
    A zero-dependency Vercel serverless function that snapshots the Personal
    planner (client_id 'vpm') into a dated backup row set, keeping the last
    KEEP days. Run daily by a Vercel Cron (see vercel.json). Also callable
-   manually with ?k=<TOKEN> to force a backup on demand.
+   manually with `Authorization: Bearer <token>` to force a backup on demand.
 
    One backup per calendar day: id `__backup-YYYY-MM-DD-vpm-auto`. Repeat
    calls on the same day are no-ops (so it's safe to hit publicly / by cron
-   without a secret), unless ?k=<TOKEN> forces a re-snapshot.
+   without a secret), unless an authenticated call forces a re-snapshot.
    ========================================================================= */
 
 const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
 const SRC_CLIENT = 'vpm';
 const KEEP = 14;
-const TOKEN = 'vpm-cal-7f3a9c2e5b18d4';
+const { authenticate } = require('./auth.js');
 const SUFFIX = '-vpm-auto';
 
 function H(extra) { return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {}); }
@@ -29,7 +29,7 @@ async function getJSON(url) {
 
 module.exports = async (req, res) => {
   try {
-    const force = req.query && (req.query.k === TOKEN || req.query.token === TOKEN);
+    const force = authenticate(req).ok;
     const today = new Date().toISOString().slice(0, 10);        // YYYY-MM-DD (UTC)
     const backupId = '__backup-' + today + SUFFIX;
 

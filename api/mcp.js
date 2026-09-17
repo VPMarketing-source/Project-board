@@ -5,8 +5,10 @@
    read (and add to) the Personal Planner calendar. It reads the same
    Supabase rows the web app syncs to, so Claude always sees the live board.
 
-   Endpoint:  https://<your-vercel-domain>/api/mcp?k=<TOKEN>
-   Add that full URL as a Custom Connector in Claude.
+   Endpoint:  https://<your-vercel-domain>/api/mcp
+   Add it as a Custom Connector in Claude, authenticating with
+   `Authorization: Bearer <token>`. A ?k=<token> query string still works
+   while connectors are moved across, but it is legacy — see api/auth.js.
 
    Transport: MCP Streamable HTTP, stateless. POST carries a JSON-RPC
    message; we answer with application/json. No sessions, no SSE needed for
@@ -45,10 +47,15 @@ const SECTIONS_KEY  = STORE + '::sections::v1';
 const SECFREE_KEY   = STORE + '::sectionfree::v1';
 const FREEFORM_KEY  = STORE + '::freeform';
 
-// Shared secret — the connector URL must include ?k=<TOKEN>. Not military
-// grade (the underlying Supabase anon key is already public), just enough to
-// keep the tidy MCP endpoint from being trivially discoverable/usable.
-const TOKEN = 'vpm-cal-7f3a9c2e5b18d4';
+// Who may call this endpoint: api/auth.js. Tokens live in the environment,
+// several are valid at once so rotation never breaks a caller mid-flight,
+// and the secret belongs in an Authorization header rather than a URL.
+//
+// NOTE: this gate protects the ENDPOINT, not the DATA. planner_state grants
+// the public anon key full select/insert/update/delete, so the calendar is
+// reachable with the key that ships in the browser bundle. Tightening that
+// is separate, and larger, work.
+const { authenticate } = require('./auth.js');
 
 const PROTOCOL_VERSION = '2025-06-18';
 
@@ -588,10 +595,15 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Accept');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
 
-  // Token gate (?k=… or Authorization: Bearer …)
-  const q = (req.query && (req.query.k || req.query.token)) || '';
-  const auth = (req.headers && (req.headers.authorization || '')).replace(/^Bearer\s+/i, '');
-  if (q !== TOKEN && auth !== TOKEN) { res.status(401).json({ error: 'Unauthorized — missing or bad token' }); return; }
+  // Token gate: Authorization: Bearer <token>, or the legacy ?k=… while
+  // connectors are moved over.
+  const auth = authenticate(req);
+  if (!auth.ok) { res.status(401).json({ error: auth.reason }); return; }
+  if (auth.via === 'query') {
+    // Visible in the response, not just a log line, so the legacy path is
+    // noticed and retired rather than quietly living forever.
+    res.setHeader('Warning', '299 - "Token sent in the URL. Use Authorization: Bearer instead."');
+  }
 
   if (req.method === 'GET') {
     // Simple health/info response; the connector uses POST.
