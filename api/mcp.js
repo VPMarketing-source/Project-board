@@ -18,6 +18,23 @@
      - add_calendar_item    append a task/note to a specific day
      - delete_calendar_item remove a line from a day by its text
      - edit_calendar_item   change a line's text, keeping its checkbox state
+
+   Per-item styling
+   ----------------
+   add_calendar_item / edit_calendar_item accept three optional arguments —
+   heading (boolean), bold (boolean) and color ("green" | "black" | "red").
+   They are stored on the item's own block as classes the planner styles:
+
+     pc-head                 a heading line, never a to-do (no checkbox)
+     pc-b                    bold
+     pc-fg-green|black|red   text colour
+
+   Anything unrecognised is ignored rather than rejected, and an item written
+   without them keeps exactly today's plain rendering. The classes live on the
+   block element, so get_calendar_week's text output is untouched: heading and
+   timed lines read as plain lines, to-dos still read as "[ ]" / "[x]".
+   Strike-through is deliberately NOT stored here — only the planner knows
+   when a box is ticked or a time has passed, so it decides that at render.
    ========================================================================= */
 
 const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
@@ -186,6 +203,108 @@ function renderWeek(mondayKey, data) {
   return out.join('\n');
 }
 
+/* ── Per-item styling ────────────────────────────────────────────────
+   Agent Board sends heading / bold / color alongside an item's text. We
+   keep them on the item's own block as classes, alongside its text and
+   (for a to-do) its checkbox state. Unknown values are dropped silently —
+   a write must never fail because of a combination we don't know. */
+const COLORS = { green: 'pc-fg-green', black: 'pc-fg-black', red: 'pc-fg-red' };
+const STYLE_CLASS = /^(pc-head|pc-b|pc-fg-(?:green|black|red))$/;
+
+function readStyle(args) {
+  const color = String(args.color == null ? '' : args.color).trim().toLowerCase();
+  return {
+    heading: args.heading === true,
+    bold: args.bold === true,
+    color: Object.prototype.hasOwnProperty.call(COLORS, color) ? color : '',
+    // true when the caller asked for *any* styling at all
+    any: args.heading === true || args.bold === true || Object.prototype.hasOwnProperty.call(COLORS, color),
+  };
+}
+function styleClasses(style) {
+  const cs = [];
+  if (style.heading) cs.push('pc-head');
+  if (style.bold) cs.push('pc-b');
+  if (style.color) cs.push(COLORS[style.color]);
+  return cs;
+}
+// The styling classes a stored block already carries.
+function styleClassesOn(block) {
+  const m = /^<div\b[^>]*\bclass="([^"]*)"/i.exec(block);
+  if (!m) return [];
+  return m[1].split(/\s+/).filter((c) => STYLE_CLASS.test(c));
+}
+function withClasses(tag, classes) {
+  return classes.length ? tag + ' class="' + classes.join(' ') + '"' : tag;
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function todoBlock(safeText, classes, checked) {
+  return '<div' + (classes.length ? ' class="' + classes.join(' ') + '"' : ' class="pc-todo"') + '>' +
+    '<input type="checkbox" class="pc-todo-box" contenteditable="false"' + (checked ? ' checked' : '') + '>' +
+    '<span class="pc-todo-text">' + safeText + '</span></div>';
+}
+// Build the stored block for a brand-new item.
+function buildBlock(text, checkbox, style) {
+  const safe = escapeHtml(text);
+  const cs = styleClasses(style);
+  if (style.heading || !checkbox) return '<' + withClasses('div', cs) + '>' + safe + '</div>';
+  return todoBlock(safe, ['pc-todo'].concat(cs), false);
+}
+
+/* One entry per styled line in a week: which day and section it sits on, its
+   text, and the heading/bold/color it was written with. Purely additive — it
+   is never folded into renderWeek's text. */
+function weekStyles(mondayKey, data) {
+  const out = [];
+  (data.sections[mondayKey] || []).forEach((sec) => {
+    weekDates(mondayKey).forEach((d) => {
+      const dayKey = ymd(d);
+      splitBlocks(data.secfree[dayKey + '::' + sec.id] || '').forEach((block) => {
+        const cs = styleClassesOn(block);
+        if (!cs.length) return;
+        const t = htmlToText(block).replace(/^\[[x ]\]\s*/, '').trim();
+        if (!t) return;
+        const color = cs.map((c) => (/^pc-fg-(\w+)$/.exec(c) || [])[1]).find(Boolean) || null;
+        out.push({
+          day: dayKey, section: sec.name || 'Section', text: t,
+          heading: cs.indexOf('pc-head') !== -1,
+          bold: cs.indexOf('pc-b') !== -1,
+          color,
+        });
+      });
+    });
+  });
+  return out;
+}
+
+/* ── Finding one line in a day ───────────────────────────────────────
+   Shared by delete/edit (which must land on exactly one line) and by
+   add's optional 'after' (which quietly falls back when unsure). */
+function collectMatches(data, dayKey, targets, wanted) {
+  const matches = [];
+  const want = wanted.toLowerCase();
+  targets.forEach((sec) => {
+    const cellKey = dayKey + '::' + sec.id;
+    const html = data.secfree[cellKey] || '';
+    splitBlocks(html).forEach((block) => {
+      const t = htmlToText(block).replace(/^\[[x ]\]\s*/, '').trim();
+      if (!t) return;
+      const lower = t.toLowerCase();
+      if (lower === want || lower.indexOf(want) !== -1) {
+        matches.push({ cellKey, block, text: t, secName: sec.name || 'Section', exact: lower === want });
+      }
+    });
+  });
+  return matches;
+}
+function chooseMatch(matches) {
+  const exact = matches.filter((m) => m.exact);
+  if (exact.length === 1) return exact[0];
+  return matches.length === 1 ? matches[0] : null;
+}
+
 /* ── Tools ──────────────────────────────────────────────────────────── */
 const TOOLS = [
   {
@@ -195,6 +314,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         week: { type: 'string', description: "Monday of the week as YYYY-MM-DD, or 'current' / 'next' / 'last'. Defaults to the current week." },
+        include_styles: { type: 'boolean', description: 'If true, also return each styled line\'s heading/bold/color as a separate JSON block, after the week text. The week text itself is identical either way. Default false.' },
       },
     },
   },
@@ -223,7 +343,7 @@ const TOOLS = [
   },
   {
     name: 'edit_calendar_item',
-    description: "Change one line's text on a day, keeping its checkbox and checked state. Same matching rules as delete_calendar_item.",
+    description: "Change one line's text on a day, keeping its checkbox and checked state. Same matching rules as delete_calendar_item. Optionally restyle it with heading / bold / color; styling arguments you leave out are left as they are.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -231,20 +351,27 @@ const TOOLS = [
         text: { type: 'string', description: 'The current visible text of the line (or a unique part of it).' },
         new_text: { type: 'string', description: 'What the line should say instead.' },
         section: { type: 'string', description: 'Which section (row) it is under, by name. Searches every section when omitted.' },
+        heading: { type: 'boolean', description: 'If true, the line is a heading, not a task — it renders as a heading with no checkbox.' },
+        bold: { type: 'boolean', description: 'If true, render the line bold.' },
+        color: { type: 'string', description: 'Text colour for the line: "green", "black" or "red". Anything else is ignored.' },
       },
       required: ['day', 'text', 'new_text'],
     },
   },
   {
     name: 'add_calendar_item',
-    description: "Add a task or note to the user's calendar on a specific day. Appends a line (optionally as a checkbox) to a section for that day. Confirm details with the user before adding.",
+    description: "Add a task, heading or note to the user's calendar on a specific day. Appends a line (optionally as a checkbox) to a section for that day, or inserts it after an existing line with 'after'. Lines can be styled with heading / bold / color. Confirm details with the user before adding.",
     inputSchema: {
       type: 'object',
       properties: {
         day: { type: 'string', description: 'The day to add to, as YYYY-MM-DD.' },
         text: { type: 'string', description: 'The task/note text.' },
         section: { type: 'string', description: "Which section (row) to add under, by name. Defaults to the week's first section." },
-        checkbox: { type: 'boolean', description: 'If true, add it as an unchecked to-do. Default true.' },
+        checkbox: { type: 'boolean', description: 'If true, add it as an unchecked to-do. Defaults to true for a plain line, and to false when heading/bold/color are given (a styled heading or timed item is not a to-do).' },
+        heading: { type: 'boolean', description: 'If true, the line is a heading, not a task — it renders as a heading with no checkbox.' },
+        bold: { type: 'boolean', description: 'If true, render the line bold.' },
+        color: { type: 'string', description: 'Text colour for the line: "green", "black" or "red". Anything else is ignored.' },
+        after: { type: 'string', description: 'Insert the new line directly after the line whose text matches this (e.g. the heading it belongs under), instead of at the bottom of the day. Same matching rules as edit_calendar_item; falls back to the bottom when nothing matches.' },
       },
       required: ['day', 'text'],
     },
@@ -266,7 +393,14 @@ async function callTool(name, args) {
   if (name === 'get_calendar_week') {
     const data = await loadAll();
     const mondayKey = resolveWeek(args.week);
-    return renderWeek(mondayKey, data);
+    const text = renderWeek(mondayKey, data);
+    // Styling never goes inline: the week text is parsed downstream and must
+    // stay byte-for-byte what it has always been. Callers who want the colours
+    // ask for them, and get them as their own JSON block alongside the text.
+    if (args.include_styles === true) {
+      return { text, extra: JSON.stringify({ week: mondayKey, styles: weekStyles(mondayKey, data) }, null, 2) };
+    }
+    return text;
   }
 
   if (name === 'get_priorities') {
@@ -313,20 +447,8 @@ async function callTool(name, args) {
     if (!targets.length) throw new Error(args.section ? 'No section named "' + args.section + '" that week.' : 'That week has no sections.');
 
     // Every match across the searched cells: { cellKey, block, text, secName }.
-    const matches = [];
-    const want = wanted.toLowerCase();
-    targets.forEach((sec) => {
-      const cellKey = dayKey + '::' + sec.id;
-      const html = data.secfree[cellKey] || '';
-      splitBlocks(html).forEach((block) => {
-        const t = htmlToText(block).replace(/^\[[x ]\]\s*/, '').trim();
-        if (!t) return;
-        const lower = t.toLowerCase();
-        if (lower === want || lower.indexOf(want) !== -1) matches.push({ cellKey, block, text: t, secName: sec.name || 'Section', exact: lower === want });
-      });
-    });
-    const exact = matches.filter((m) => m.exact);
-    const pick = exact.length === 1 ? exact[0] : (matches.length === 1 ? matches[0] : null);
+    const matches = collectMatches(data, dayKey, targets, wanted);
+    const pick = chooseMatch(matches);
     if (!pick) {
       if (!matches.length) throw new Error('No line on ' + niceDate(day) + ' matches "' + wanted + '".');
       throw new Error(matches.length + ' lines match "' + wanted + '" on ' + niceDate(day) + ' (' +
@@ -339,13 +461,24 @@ async function callTool(name, args) {
       await writeKey(SECFREE_KEY, data.secfree);
       return 'Removed from ' + niceDate(day) + ' under "' + pick.secName + '": ' + pick.text + '\n\nThe planner live-syncs.';
     }
-    const safe = newText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safe = escapeHtml(newText);
+    const style = readStyle(args);
+    // Styling is only touched when the caller asks: pass none of heading/bold/
+    // color and the line keeps exactly the look it already has.
+    const cs = style.any ? styleClasses(style) : styleClassesOn(pick.block);
+    const isTodo = /pc-todo-text/.test(pick.block);
     let newBlock;
-    if (/pc-todo-text/.test(pick.block)) {
-      // Keep the block (and its checked state); swap only the label span's content.
-      newBlock = pick.block.replace(/(<span[^>]*class="[^"]*pc-todo-text[^"]*"[^>]*>)[\s\S]*?(<\/span>)/, '$1' + safe.replace(/\$/g, '$$$$') + '$2');
+    if (cs.indexOf('pc-head') !== -1 || !isTodo) {
+      // A heading is never a to-do, and a plain line stays a plain line.
+      newBlock = '<' + withClasses('div', cs) + '>' + safe + '</div>';
     } else {
-      newBlock = '<div>' + safe + '</div>';
+      // Keep the row (and its checked state); swap the label's content and
+      // rewrite the class list so the styling matches.
+      const checked = /\bis-checked\b/.test(pick.block);
+      const rowClasses = ['pc-todo'].concat(checked ? ['is-checked'] : []).concat(cs);
+      newBlock = pick.block
+        .replace(/(<span[^>]*class="[^"]*pc-todo-text[^"]*"[^>]*>)[\s\S]*?(<\/span>)/, '$1' + safe.replace(/\$/g, '$$$$') + '$2')
+        .replace(/^<div\b[^>]*?(?:\sclass="[^"]*")?([^>]*)>/i, '<div class="' + rowClasses.join(' ') + '"$1>');
     }
     data.secfree[pick.cellKey] = html.replace(pick.block, newBlock);
     await writeKey(SECFREE_KEY, data.secfree);
@@ -357,7 +490,12 @@ async function callTool(name, args) {
     if (!day) throw new Error("'day' must be a date like 2026-09-08");
     const text = String(args.text || '').trim();
     if (!text) throw new Error("'text' is required");
-    const checkbox = args.checkbox !== false;
+    const style = readStyle(args);
+    // A plain line is still a to-do by default. A styled line (a heading, or a
+    // bold/coloured timed item) is not: those are labels, not boxes to tick —
+    // unless the caller explicitly asks for a checkbox anyway.
+    const checkbox = style.heading ? false
+      : (args.checkbox === true ? true : (style.any ? false : args.checkbox !== false));
     const dayKey = ymd(day);
     const mondayKey = ymd(mondayOf(day));
     const data = await loadAll();
@@ -371,13 +509,29 @@ async function callTool(name, args) {
     const cellKey = dayKey + '::' + sec.id;
     const secfree = data.secfree;
     const existing = secfree[cellKey] || '';
-    const safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const block = checkbox
-      ? '<div class="pc-todo"><input type="checkbox" class="pc-todo-box" contenteditable="false"><span class="pc-todo-text">' + safe + '</span></div>'
-      : '<div>' + safe + '</div>';
-    secfree[cellKey] = existing + block;
+    const block = buildBlock(text, checkbox, style);
+
+    // 'after' drops the line directly below an existing one (its heading, say)
+    // instead of at the bottom of the day. Ambiguous or missing → bottom, so a
+    // vague 'after' never costs the caller the write.
+    let placedAfter = '';
+    const afterText = String(args.after || '').trim();
+    if (afterText) {
+      const anchor = chooseMatch(collectMatches(data, dayKey, [sec], afterText));
+      if (anchor && anchor.cellKey === cellKey) {
+        const at = existing.indexOf(anchor.block);
+        if (at !== -1) {
+          const end = at + anchor.block.length;
+          secfree[cellKey] = existing.slice(0, end) + block + existing.slice(end);
+          placedAfter = anchor.text;
+        }
+      }
+    }
+    if (!placedAfter) secfree[cellKey] = existing + block;
+
     await writeKey(SECFREE_KEY, secfree);
-    return 'Added to ' + niceDate(day) + ' under "' + sec.name + '": ' + text +
+    return 'Added to ' + niceDate(day) + ' under "' + sec.name + '"' +
+      (placedAfter ? ', after "' + placedAfter + '"' : '') + ': ' + text +
       '\n\nIt will appear on the planner (it live-syncs).';
   }
 
@@ -404,8 +558,11 @@ async function handleMessage(m) {
     const nm = params && params.name;
     const args = (params && params.arguments) || {};
     try {
-      const text = await callTool(nm, args);
-      return rpcResult(id, { content: [{ type: 'text', text }] });
+      const res = await callTool(nm, args);
+      const content = typeof res === 'string'
+        ? [{ type: 'text', text: res }]
+        : [{ type: 'text', text: res.text }].concat(res.extra ? [{ type: 'text', text: res.extra }] : []);
+      return rpcResult(id, { content });
     } catch (e) {
       return rpcResult(id, { content: [{ type: 'text', text: 'Error: ' + (e && e.message ? e.message : String(e)) }], isError: true });
     }
