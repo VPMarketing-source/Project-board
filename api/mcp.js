@@ -12,12 +12,30 @@
    message; we answer with application/json. No sessions, no SSE needed for
    simple request/response tools.
 
-   Tools:
+   Tools — the original text-addressed five:
      - get_calendar_week    read one week's sections x days as clean text
      - get_priorities       outstanding (unchecked) items across the next weeks
      - add_calendar_item    append a task/note to a specific day
      - delete_calendar_item remove a line from a day by its text
      - edit_calendar_item   change a line's text, keeping its checkbox state
+
+   ...and the controlled tool layer (api/calendar-tools.js), which is what
+   makes the calendar conversational — Matthew talks to Claude, Claude calls
+   these, they drive the existing calendar:
+     - get_day / get_week           structured items, each with a task_id
+     - create_task                  a to-do, filed under its heading
+     - create_timed_event           a red/bold timed commitment
+     - move_task                    one item to another day, heading intact
+     - complete_task / uncomplete_task   ticked in place, never moved
+     - delete_task                  remove one item
+     - rollover_incomplete_tasks    one day's unfinished work → the next day
+     - rollover_overdue_tasks       sweep work stranded in past days
+     - optimise_week                ADVISORY: reads his goals, never writes
+     - get_calendar_change_log      what was changed, when, by whom and why
+     - normalise_week               stamp permanent item ids (invisible)
+
+   Every mutation takes a required `reason` and is logged. Reads are free.
+   No new tables: the log is one more key under the same pc-ops:: prefix.
 
    Per-item styling
    ----------------
@@ -37,13 +55,19 @@
    when a box is ticked or a time has passed, so it decides that at render.
    ========================================================================= */
 
-const SUPABASE_URL = 'https://rqlrpxxkskqxpjgiqyql.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHJweHhrc2txeHBqZ2lxeXFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjc3OTYsImV4cCI6MjA5NTUwMzc5Nn0.RG7fzJxp_SoSMNxHlkfLgrAx7ycupmt0jEDm3q9XHBE';
-const CLIENT_ID = 'vpm';                         // the live planner
-const STORE     = 'pc-ops::vpm::calendar::v1';   // its calendar key prefix
-const SECTIONS_KEY  = STORE + '::sections::v1';
-const SECFREE_KEY   = STORE + '::sectionfree::v1';
-const FREEFORM_KEY  = STORE + '::freeform';
+const CORE = require('./calendar-core.js');
+const CT = require('./calendar-tools.js');
+
+// The store, dates, HTML⇄text and styling helpers now live in
+// api/calendar-core.js so the Reid/Claude tool layer shares them verbatim.
+const {
+  CLIENT_ID, SECTIONS_KEY, SECFREE_KEY, FREEFORM_KEY,
+  readKey, writeKey, loadAll,
+  ymd, parseYmd, mondayOf, weekDates, niceDate,
+  htmlToText, splitBlocks,
+  readStyle, styleClasses, styleClassesOn, withClasses, escapeHtml, buildBlock,
+  collectMatches, chooseMatch,
+} = CORE;
 
 // Shared secret — the connector URL must include ?k=<TOKEN>. Not military
 // grade (the underlying Supabase anon key is already public), just enough to
@@ -52,131 +76,7 @@ const TOKEN = 'vpm-cal-7f3a9c2e5b18d4';
 
 const PROTOCOL_VERSION = '2025-06-18';
 
-/* ── Supabase helpers ───────────────────────────────────────────────── */
-function sbHeaders(extra) {
-  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
-}
-async function readKey(key) {
-  const url = SUPABASE_URL + '/rest/v1/planner_state?select=value' +
-    '&client_id=eq.' + encodeURIComponent(CLIENT_ID) +
-    '&key=eq.' + encodeURIComponent(key);
-  const r = await fetch(url, { headers: sbHeaders() });
-  if (!r.ok) throw new Error('Supabase read ' + r.status);
-  const rows = await r.json();
-  if (!rows || !rows.length) return null;
-  const v = rows[0].value;
-  const raw = (v && typeof v === 'object' && 'raw' in v) ? v.raw : (typeof v === 'string' ? v : JSON.stringify(v));
-  if (raw == null) return null;
-  try { return JSON.parse(raw); } catch (_) { return raw; }
-}
-async function writeKey(key, obj) {
-  const body = [{ client_id: CLIENT_ID, key, value: { raw: JSON.stringify(obj) }, updated_at: new Date().toISOString() }];
-  const r = await fetch(SUPABASE_URL + '/rest/v1/planner_state?on_conflict=client_id,key', {
-    method: 'POST',
-    headers: sbHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' }),
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error('Supabase write ' + r.status);
-}
-
-/* ── Dates ──────────────────────────────────────────────────────────── */
-function ymd(d) {
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
-function parseYmd(s) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim());
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-function mondayOf(d) {
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (x.getDay() + 6) % 7; // 0 = Monday
-  x.setDate(x.getDate() - dow);
-  return x;
-}
-function weekDates(mondayKey) {
-  const m = parseYmd(mondayKey);
-  const out = [];
-  for (let i = 0; i < 7; i++) { const d = new Date(m); d.setDate(m.getDate() + i); out.push(d); }
-  return out;
-}
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function niceDate(d) { return DOW[(d.getDay() + 6) % 7] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
-
-/* ── HTML → readable text (checkboxes, dropdowns, dividers) ──────────── */
-function decodeEntities(s) {
-  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/​/g, '');
-}
-function htmlToText(html) {
-  if (!html || typeof html !== 'string') return '';
-  let s = html;
-  // Checkboxes: mark before stripping tags.
-  s = s.replace(/<div[^>]*class="[^"]*pc-todo[^"]*is-checked[^"]*"[^>]*>/gi, '\n[x] ');
-  s = s.replace(/<div[^>]*class="[^"]*pc-todo(?![^"]*is-checked)[^"]*"[^>]*>/gi, '\n[ ] ');
-  // Dropdown/section headings and dividers.
-  s = s.replace(/<span[^>]*class="[^"]*pc-drop-title[^"]*"[^>]*>/gi, '\n### ');
-  s = s.replace(/<div[^>]*class="[^"]*pc-divider[^"]*"[^>]*>/gi, '\n———\n');
-  // Block boundaries → newlines.
-  s = s.replace(/<br\s*\/?>/gi, '\n');
-  s = s.replace(/<\/(div|p|li|h[1-6])>/gi, '\n');
-  s = s.replace(/<li[^>]*>/gi, '\n• ');
-  // Drop the toggle chevron SVGs and any remaining tags.
-  s = s.replace(/<svg[\s\S]*?<\/svg>/gi, '');
-  s = s.replace(/<[^>]+>/g, '');
-  s = decodeEntities(s);
-  // Tidy whitespace: trim lines, collapse blank runs, drop empty checkbox rows.
-  const lines = s.split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim())
-    .filter((l, i, arr) => {
-      if (l === '[x]' || l === '[ ]') return false;      // empty checkbox row
-      if (l === '' && (i === 0 || arr[i - 1] === '')) return false; // collapse blanks
-      return true;
-    });
-  return lines.join('\n').trim();
-}
-
-/* ── Cell HTML → top-level blocks ───────────────────────────────────────
-   A day-cell is a flat run of block elements (pc-todo divs, plain divs,
-   dividers). Splitting on top-level <div> boundaries by depth gives each
-   visible line as one block string, so delete/edit can act on a whole
-   line without touching its neighbours. Text between blocks (bare text
-   nodes, <br> runs) is kept as its own pseudo-block. */
-function splitBlocks(html) {
-  if (!html || typeof html !== 'string') return [];
-  const out = [];
-  let depth = 0, start = 0, i = 0;
-  const push = (end) => { const s = html.slice(start, end); if (s.trim()) out.push(s); };
-  while (i < html.length) {
-    const open = /^<div\b/i.test(html.slice(i, i + 5));
-    const close = /^<\/div>/i.test(html.slice(i, i + 6));
-    if (open) {
-      if (depth === 0 && i > start) { push(i); start = i; }
-      depth++;
-      i = html.indexOf('>', i) + 1 || html.length;
-      continue;
-    }
-    if (close) {
-      depth = Math.max(0, depth - 1);
-      i += 6;
-      if (depth === 0) { push(i); start = i; }
-      continue;
-    }
-    i++;
-  }
-  if (start < html.length) push(html.length);
-  return out;
-}
-
 /* ── Calendar reads ─────────────────────────────────────────────────── */
-async function loadAll() {
-  const [sections, secfree, freeform] = await Promise.all([
-    readKey(SECTIONS_KEY).catch(() => null),
-    readKey(SECFREE_KEY).catch(() => null),
-    readKey(FREEFORM_KEY).catch(() => null),
-  ]);
-  return { sections: sections || {}, secfree: secfree || {}, freeform: freeform || {} };
-}
 
 function renderWeek(mondayKey, data) {
   const days = weekDates(mondayKey);
@@ -203,56 +103,6 @@ function renderWeek(mondayKey, data) {
   return out.join('\n');
 }
 
-/* ── Per-item styling ────────────────────────────────────────────────
-   Agent Board sends heading / bold / color alongside an item's text. We
-   keep them on the item's own block as classes, alongside its text and
-   (for a to-do) its checkbox state. Unknown values are dropped silently —
-   a write must never fail because of a combination we don't know. */
-const COLORS = { green: 'pc-fg-green', black: 'pc-fg-black', red: 'pc-fg-red' };
-const STYLE_CLASS = /^(pc-head|pc-b|pc-fg-(?:green|black|red))$/;
-
-function readStyle(args) {
-  const color = String(args.color == null ? '' : args.color).trim().toLowerCase();
-  return {
-    heading: args.heading === true,
-    bold: args.bold === true,
-    color: Object.prototype.hasOwnProperty.call(COLORS, color) ? color : '',
-    // true when the caller asked for *any* styling at all
-    any: args.heading === true || args.bold === true || Object.prototype.hasOwnProperty.call(COLORS, color),
-  };
-}
-function styleClasses(style) {
-  const cs = [];
-  if (style.heading) cs.push('pc-head');
-  if (style.bold) cs.push('pc-b');
-  if (style.color) cs.push(COLORS[style.color]);
-  return cs;
-}
-// The styling classes a stored block already carries.
-function styleClassesOn(block) {
-  const m = /^<div\b[^>]*\bclass="([^"]*)"/i.exec(block);
-  if (!m) return [];
-  return m[1].split(/\s+/).filter((c) => STYLE_CLASS.test(c));
-}
-function withClasses(tag, classes) {
-  return classes.length ? tag + ' class="' + classes.join(' ') + '"' : tag;
-}
-function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-function todoBlock(safeText, classes, checked) {
-  return '<div' + (classes.length ? ' class="' + classes.join(' ') + '"' : ' class="pc-todo"') + '>' +
-    '<input type="checkbox" class="pc-todo-box" contenteditable="false"' + (checked ? ' checked' : '') + '>' +
-    '<span class="pc-todo-text">' + safeText + '</span></div>';
-}
-// Build the stored block for a brand-new item.
-function buildBlock(text, checkbox, style) {
-  const safe = escapeHtml(text);
-  const cs = styleClasses(style);
-  if (style.heading || !checkbox) return '<' + withClasses('div', cs) + '>' + safe + '</div>';
-  return todoBlock(safe, ['pc-todo'].concat(cs), false);
-}
-
 /* One entry per styled line in a week: which day and section it sits on, its
    text, and the heading/bold/color it was written with. Purely additive — it
    is never folded into renderWeek's text. */
@@ -277,32 +127,6 @@ function weekStyles(mondayKey, data) {
     });
   });
   return out;
-}
-
-/* ── Finding one line in a day ───────────────────────────────────────
-   Shared by delete/edit (which must land on exactly one line) and by
-   add's optional 'after' (which quietly falls back when unsure). */
-function collectMatches(data, dayKey, targets, wanted) {
-  const matches = [];
-  const want = wanted.toLowerCase();
-  targets.forEach((sec) => {
-    const cellKey = dayKey + '::' + sec.id;
-    const html = data.secfree[cellKey] || '';
-    splitBlocks(html).forEach((block) => {
-      const t = htmlToText(block).replace(/^\[[x ]\]\s*/, '').trim();
-      if (!t) return;
-      const lower = t.toLowerCase();
-      if (lower === want || lower.indexOf(want) !== -1) {
-        matches.push({ cellKey, block, text: t, secName: sec.name || 'Section', exact: lower === want });
-      }
-    });
-  });
-  return matches;
-}
-function chooseMatch(matches) {
-  const exact = matches.filter((m) => m.exact);
-  if (exact.length === 1) return exact[0];
-  return matches.length === 1 ? matches[0] : null;
 }
 
 /* ── Tools ──────────────────────────────────────────────────────────── */
@@ -377,6 +201,186 @@ const TOOLS = [
     },
   },
 ];
+
+
+/* ── Controlled calendar tools (api/calendar-tools.js) ────────────────
+   The narrow, validated layer that makes the calendar conversational:
+
+     Matthew  →  Claude  →  these tools  →  the existing calendar
+
+   Claude calls them directly; Reid can call the same endpoint. Reads are
+   free. Every write takes a required `reason`, is logged, and addresses one
+   item by the task_id a read handed out. optimise_week never writes. */
+const DAY_ARG = { type: 'string', description: 'A date as YYYY-MM-DD.' };
+const REASON_ARG = { type: 'string', description: 'Why this change is being made, in a few words. Required — it is what the change log shows when Matthew asks what was changed and why.' };
+const ACTOR_ARG = { type: 'string', description: 'Who asked for it: "claude" (default), "reid" or "matthew".' };
+const REV_ARG = { type: 'string', description: "Optional: the cell_rev you read for that day's section. The write is refused if the day changed since — use it when acting on something you read a while ago." };
+
+const CALENDAR_TOOLS = [
+  {
+    name: 'get_day',
+    description: "Read one day of Matthew's planner as structured items. Each item comes back with a task_id (use it for every mutation), its kind (task / timed / heading / note), whether it is completed, whether it is a recurring routine, the heading it sits under and its styling. Start here before changing anything on a day.",
+    inputSchema: {
+      type: 'object',
+      properties: { date: DAY_ARG, section: { type: 'string', description: 'Only this section (row) of the day, by name. All sections when omitted.' } },
+      required: ['date'],
+    },
+  },
+  {
+    name: 'get_week',
+    description: "Read a whole week as structured items, with per-day counts of open tasks, completed tasks, routines and timed commitments. Use this to talk through the week, spot overloaded days, and find task_ids. start_date can be any day in the week — it snaps to the Monday.",
+    inputSchema: { type: 'object', properties: { start_date: { type: 'string', description: 'Any day in the week, YYYY-MM-DD. Defaults to this week.' } } },
+  },
+  {
+    name: 'create_task',
+    description: "Add a to-do (checkbox) to a day. Give `heading` to file it under a category or client heading — the heading is created with the right styling if the day lacks it (client and VP MARKETING headings green + bold, PERSONAL and WEDDING black + bold). Refuses text that starts with a time: that is create_timed_event. Skips silently if the same task is already on that day.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: DAY_ARG, text: { type: 'string', description: 'The task text.' },
+        section: { type: 'string', description: "Section (row) name. Defaults to the week's first section." },
+        heading: { type: 'string', description: 'The category/client heading it belongs under, e.g. "VP MARKETING", "PERSONAL".' },
+        skip_if_duplicate: { type: 'boolean', description: 'Default true.' },
+        reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG,
+      },
+      required: ['date', 'text', 'reason'],
+    },
+  },
+  {
+    name: 'create_timed_event',
+    description: "Add a timed commitment to a day — stored red and bold, with no checkbox, as the planner styles timed items. The planner strikes it through by itself once the time has passed. Time reads like 9am, 9:30am, 14:30 or '9:00am - 10:30am'.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: DAY_ARG, time: { type: 'string', description: 'When, e.g. "3pm" or "9:00am - 10:30am".' },
+        text: { type: 'string', description: 'What it is, e.g. "Call Marlene".' },
+        section: { type: 'string', description: 'Section (row) name.' },
+        heading: { type: 'string', description: 'Heading to file it under.' },
+        reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG,
+      },
+      required: ['date', 'time', 'text', 'reason'],
+    },
+  },
+  {
+    name: 'move_task',
+    description: "Move one item to another day, keeping the heading it sat under (creating that heading on the target day if needed). Refuses to move completed work — completed items stay on the day they were done — and skips the move if the same task is already on the target day.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'From get_day / get_week.' },
+        new_date: DAY_ARG,
+        new_section: { type: 'string', description: 'Section on the target day. Defaults to the same section name.' },
+        force: { type: 'boolean', description: 'Move even a completed item. Only when Matthew explicitly asks.' },
+        reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG,
+      },
+      required: ['task_id', 'new_date', 'reason'],
+    },
+  },
+  {
+    name: 'complete_task',
+    description: "Tick a task off. It stays exactly where it is — the planner strikes it through. A plain (non-checkbox) line has no completion state; pass convert_to_task:true to turn it into a ticked task instead.",
+    inputSchema: {
+      type: 'object',
+      properties: { task_id: { type: 'string' }, convert_to_task: { type: 'boolean' }, reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG },
+      required: ['task_id', 'reason'],
+    },
+  },
+  {
+    name: 'uncomplete_task',
+    description: 'Untick a task that was marked done by mistake. It stays where it is.',
+    inputSchema: {
+      type: 'object',
+      properties: { task_id: { type: 'string' }, reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG },
+      required: ['task_id', 'reason'],
+    },
+  },
+  {
+    name: 'delete_task',
+    description: "Remove one item from the calendar. Use it when something is genuinely not happening — prefer move_task for work that still needs doing. Refuses to delete a heading unless forced.",
+    inputSchema: {
+      type: 'object',
+      properties: { task_id: { type: 'string' }, force: { type: 'boolean', description: 'Allow deleting a heading.' }, reason: REASON_ARG, actor: ACTOR_ARG, expect_cell_rev: REV_ARG },
+      required: ['task_id', 'reason'],
+    },
+  },
+  {
+    name: 'rollover_incomplete_tasks',
+    description: "Roll one day's unfinished work onto the next day (or another day with to_date). Moves only open, non-routine, untimed tasks, keeping their heading. Completed work stays put, recurring routines do not roll, past timed events do not roll, and nothing is duplicated. Use dry_run:true to show Matthew the list first.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: DAY_ARG,
+        to_date: { type: 'string', description: 'Where it lands. Defaults to the next day.' },
+        section: { type: 'string', description: 'Only roll this section.' },
+        to_section: { type: 'string', description: 'Land everything in this section instead of the one it came from.' },
+        dry_run: { type: 'boolean', description: 'Default false. True lists what would move and writes nothing.' },
+        reason: REASON_ARG, actor: ACTOR_ARG,
+      },
+      required: ['date', 'reason'],
+    },
+  },
+  {
+    name: 'rollover_overdue_tasks',
+    description: "Clean up work stranded in the past: every day up to through_date (default 14 days back) is swept onto one target day. Same rules as rollover_incomplete_tasks. DEFAULTS TO A DRY RUN because it touches several days — show Matthew what it found, then re-run with dry_run:false.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        through_date: { type: 'string', description: 'The last past day to sweep, YYYY-MM-DD (usually yesterday).' },
+        to_date: { type: 'string', description: 'Where it all lands. Defaults to the day after through_date.' },
+        lookback_days: { type: 'number', description: 'How far back to look. Default 14, max 60.' },
+        section: { type: 'string' }, to_section: { type: 'string' },
+        dry_run: { type: 'boolean', description: 'Default TRUE. Pass false to actually move the work.' },
+        reason: REASON_ARG, actor: ACTOR_ARG,
+      },
+      required: ['through_date', 'reason'],
+    },
+  },
+  {
+    name: 'optimise_week',
+    description: "ADVISORY ONLY — it never changes the calendar. Reads Matthew's current goals and priorities first, then judges the week against them: load per day, goal alignment, high-value work (revenue generation, client retention/growth, decisions that need him), low-value work, delegate / automate / defer / remove candidates, overload warnings against a SOFT per-day cap, and proposed moves. Talk the recommendations through with him, then apply the ones he approves with move_task / delete_task / the rollover tools. Errors rather than guessing if his goals cannot be read.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Any day in the week. Defaults to this week.' },
+        max_tasks_per_day: { type: 'number', description: 'Soft cap for the overload warning. Default 6. Routines and timed commitments are never counted.' },
+        goals: { type: 'array', items: { type: 'string' }, description: 'Only used when his goals cannot be read from Agent Board — e.g. he states them in conversation.' },
+        priorities: { type: 'array', items: { type: 'string' }, description: 'Same: a fallback, not the normal path.' },
+      },
+    },
+  },
+  {
+    name: 'get_calendar_change_log',
+    description: "What was changed in the calendar, when, by whom and why — newest first. Answers \"what did you change in my calendar?\". Reads only.",
+    inputSchema: {
+      type: 'object',
+      properties: { limit: { type: 'number', description: 'Default 40, max 200.' }, since: { type: 'string', description: 'ISO timestamp — only changes at or after it.' } },
+    },
+  },
+  {
+    name: 'normalise_week',
+    description: "Housekeeping: give every line in a week a permanent item id inside the existing HTML, so items keep their identity when lines are added or reordered above them. Invisible in the planner. Defaults to a dry run; pass dry_run:false to apply.",
+    inputSchema: {
+      type: 'object',
+      properties: { start_date: { type: 'string' }, dry_run: { type: 'boolean', description: 'Default true.' }, reason: { type: 'string' }, actor: ACTOR_ARG },
+    },
+  },
+];
+
+const CALENDAR_TOOL_FNS = {
+  get_day: CT.getDay,
+  get_week: CT.getWeek,
+  create_task: CT.createTask,
+  create_timed_event: CT.createTimedEvent,
+  move_task: CT.moveTask,
+  complete_task: CT.completeTask,
+  uncomplete_task: CT.uncompleteTask,
+  delete_task: CT.deleteTask,
+  rollover_incomplete_tasks: CT.rolloverIncompleteTasks,
+  rollover_overdue_tasks: CT.rolloverOverdueTasks,
+  optimise_week: CT.optimiseWeek,
+  get_calendar_change_log: CT.getChangeLog,
+  normalise_week: CT.normaliseWeek,
+};
 
 function resolveWeek(week) {
   const today = new Date();
@@ -535,6 +539,11 @@ async function callTool(name, args) {
       '\n\nIt will appear on the planner (it live-syncs).';
   }
 
+  if (Object.prototype.hasOwnProperty.call(CALENDAR_TOOL_FNS, name)) {
+    const out = await CALENDAR_TOOL_FNS[name](args || {});
+    return JSON.stringify(out, null, 2);
+  }
+
   throw new Error('Unknown tool: ' + name);
 }
 
@@ -553,7 +562,7 @@ async function handleMessage(m) {
   }
   if (method === 'notifications/initialized' || (method && method.indexOf('notifications/') === 0)) return null;
   if (method === 'ping') return rpcResult(id, {});
-  if (method === 'tools/list') return rpcResult(id, { tools: TOOLS });
+  if (method === 'tools/list') return rpcResult(id, { tools: TOOLS.concat(CALENDAR_TOOLS) });
   if (method === 'tools/call') {
     const nm = params && params.name;
     const args = (params && params.arguments) || {};
