@@ -36,9 +36,16 @@
        notes,       free text
        checklist,   [{ text, done }]
        parentId,    id of the event this prepares for, when it is a prep item
+       linkedGoal,     id of the Years goal this serves (shared/years.js)
+       linkedProjects: [] the projects/work this milestone is executed through
        source,      'manual' | 'agent'
        createdAt, updatedAt
      }
+
+   linkedGoal and linkedProjects are the rung below: Years links down to
+   Horizon, and Horizon links down to the work that executes it. Weekly
+   tasks are freeform lines in the day cells with no stable id, so a
+   project name is the durable thing to point at until they have one.
 
    The shape carries event date, preparation lead time, preparation
    milestones (as linked prep items), related client and category, so
@@ -148,6 +155,11 @@
       ? it.checklist.filter((c) => c && typeof c.text === 'string').map((c) => ({ text: c.text, done: !!c.done }))
       : [];
     it.parentId = it.parentId || '';
+    it.linkedGoal = it.linkedGoal || '';
+    it.linkedProjects = Array.isArray(it.linkedProjects)
+      ? it.linkedProjects.filter(Boolean).map(String)
+      : (typeof it.linkedProjects === 'string' && it.linkedProjects.trim()
+          ? it.linkedProjects.split(',').map((x) => x.trim()).filter(Boolean) : []);
     it.source = it.source === 'agent' ? 'agent' : 'manual';
     it.createdAt = it.createdAt || new Date().toISOString();
     return it;
@@ -450,6 +462,12 @@
             '<label class="hz-field"><span>Start preparing</span><input type="date" id="hz-f-prep"></label>' +
           '</div>' +
           '<p class="hz-prep-hint" id="hz-prep-hint"></p>' +
+          '<div class="hz-row">' +
+            '<label class="hz-field"><span>Supports which yearly goal</span>' +
+              '<select id="hz-f-goal"></select></label>' +
+            '<label class="hz-field"><span>Related projects</span>' +
+              '<input type="text" id="hz-f-projects" placeholder="Comma separated"></label>' +
+          '</div>' +
           '<div class="hz-field"><span>Checklist</span><div class="hz-checklist" id="hz-f-checklist"></div>' +
             '<button type="button" class="hz-link" id="hz-add-check">+ Add step</button></div>' +
           '<label class="hz-field"><span>Notes</span><textarea id="hz-f-notes" rows="3" placeholder="Optional"></textarea></label>' +
@@ -513,6 +531,25 @@
     return row;
   }
 
+  // The Years goals this item could be serving. Years may not be loaded
+  // (or may hold nothing yet), in which case the picker simply says so.
+  function paintGoalPicker(selected) {
+    const sel = document.getElementById('hz-f-goal');
+    let goals = [];
+    try {
+      if (window.Years && typeof window.Years.items === 'function') {
+        goals = window.Years.items().filter((i) => i.kind === 'goal');
+      }
+    } catch (_) { goals = []; }
+    sel.innerHTML = '<option value="">' + (goals.length ? 'Not linked to a goal' : 'No yearly goals yet') + '</option>' +
+      goals.sort((a, b) => a.year - b.year)
+        .map((g) => '<option value="' + escAttr(g.id) + '">' + escAttr(g.title) + ' (' + g.year + ')</option>').join('');
+    sel.value = selected || '';
+  }
+  function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function openEditor(id, month) {
     const all = loadAll();
     const it = id && all[id] ? normalise(all[id], id)
@@ -531,6 +568,8 @@
     monthEl.onchange = () => { monthEl.dataset.touched = '1'; };
     document.getElementById('hz-f-prep').value = it.prepStart;
     document.getElementById('hz-f-notes').value = it.notes;
+    document.getElementById('hz-f-projects').value = (it.linkedProjects || []).join(', ');
+    paintGoalPicker(it.linkedGoal);
     const list = document.getElementById('hz-f-checklist');
     list.innerHTML = '';
     it.checklist.forEach((c) => addCheckRow(c.text, c.done));
@@ -568,6 +607,9 @@
       prepStart: document.getElementById('hz-f-prep').value,
       month: monthEl.value || (date ? date.slice(0, 7) : monthKey(state.anchor)),
       notes: document.getElementById('hz-f-notes').value,
+      linkedGoal: document.getElementById('hz-f-goal').value,
+      linkedProjects: document.getElementById('hz-f-projects').value
+        .split(',').map((x) => x.trim()).filter(Boolean),
       checklist: [...document.querySelectorAll('#hz-f-checklist .hz-check-edit')]
         .map((r) => ({ text: r.querySelector('.hz-ce-text').value.trim(), done: r.querySelector('.hz-ce-done').checked }))
         .filter((c) => c.text),

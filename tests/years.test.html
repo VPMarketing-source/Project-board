@@ -268,6 +268,15 @@
       assert(orphans.indexOf(used.id) < 0, 'the linked one is not');
     });
 
+    test('a Horizon item can name its goal from its own side', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: 2031 });
+      const h = H.save({ title: 'Build outbound process', type: 'prep', month: '2031-01', linkedGoal: g.id });
+      assert(Y.supportFor(g.id).horizon.some((x) => x.id === h.id), 'it counts as support');
+      assert(Y.orphanHorizonItems().every((x) => x.id !== h.id), 'and is not an orphan');
+      assert(Y.unsupportedGoals().every((x) => x.id !== g.id), 'so the goal is supported');
+    });
+
     test('an achieved goal is not chased for missing support', () => {
       wipe();
       const done = Y.save({ kind: 'goal', title: 'Done thing', year: 2031, status: 'done' });

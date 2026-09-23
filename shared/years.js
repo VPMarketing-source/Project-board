@@ -219,8 +219,9 @@
   function unsupportedGoals(year) {
     const ms = items().filter((i) => i.kind === 'milestone');
     const hz = horizonItems();
+    const namedBy = (gid) => Object.keys(hz).some((id) => hz[id] && hz[id].linkedGoal === gid);
     return items().filter((g) => g.kind === 'goal' && g.status !== 'done' && (!year || g.year === year))
-      .filter((g) => !g.linkedHorizon.some((id) => hz[id]) && !ms.some((m) => m.goalId === g.id));
+      .filter((g) => !g.linkedHorizon.some((id) => hz[id]) && !ms.some((m) => m.goalId === g.id) && !namedBy(g.id));
   }
   // Horizon items no long-term goal is counting on — time that may not be
   // serving any direction.
@@ -231,6 +232,8 @@
       (i.linkedHorizon || []).forEach((id) => claimed.add(id));
       if (i.horizonId) claimed.add(i.horizonId);
     });
+    // A Horizon item can also name its goal from its own side.
+    Object.keys(hz).forEach((id) => { if (hz[id] && hz[id].linkedGoal) claimed.add(id); });
     return Object.keys(hz).filter((id) => !claimed.has(id)).map((id) => Object.assign({ id }, hz[id]));
   }
   // Everything standing under one goal, across both layers below it.
@@ -238,8 +241,11 @@
     const hz = horizonItems();
     return {
       milestones: items().filter((i) => i.kind === 'milestone' && i.goalId === goalId),
-      horizon: (normalise(loadAll()[goalId] || {}, goalId).linkedHorizon || [])
-        .filter((id) => hz[id]).map((id) => Object.assign({ id }, hz[id])),
+      // Linked from the goal, and from any Horizon item that names it.
+      horizon: Array.from(new Set(
+        (normalise(loadAll()[goalId] || {}, goalId).linkedHorizon || [])
+          .concat(Object.keys(hz).filter((id) => hz[id] && hz[id].linkedGoal === goalId))
+      )).filter((id) => hz[id]).map((id) => Object.assign({ id }, hz[id])),
     };
   }
 
