@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Horizon — tests</title>
+<!--
+  Browser test for the Horizon long-term planning view (shared/horizon.js).
+  It builds the minimal calendar shell that shared/calendar.js would render,
+  points CLIENT_DATA at a throwaway id so the real planner's data is never
+  touched, then drives the REAL module: add, edit, tick, move, navigate.
+
+  Run: open this file over the dev server, e.g.
+    http://localhost:5555/tests/horizon.test.html
+
+  Results render on the page and are also exposed on window.__TEST_RESULTS.
+-->
+<link rel="stylesheet" href="../shared/calendar.css" />
+<link rel="stylesheet" href="../shared/horizon.css" />
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; padding: 24px; color: #11131a; background: #f7f2e7; }
+  h1 { font-size: 18px; }
+  #summary { font-weight: 700; margin: 12px 0; }
+  #out { background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px; white-space: pre-wrap; font: 12px/1.6 ui-monospace, monospace; }
+  .ok { color: #3fb950; } .bad { color: #f85149; }
+  .planner-cal { background: #fff; border: 1px solid #ebe6d4; border-radius: 18px; padding: 20px 24px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>Horizon</h1>
+
+<!-- The shell shared/calendar.js builds; horizon.js injects itself into it. -->
+<section id="planner-cal" class="planner-cal">
+  <div class="cal-head">
+    <button type="button" class="cal-wrap-head" id="cal-wrap-head"><h2 class="cal-wrap-title">Calendar</h2></button>
+    <div class="cal-nav">
+      <button type="button" id="cal-prev">‹</button>
+      <button type="button" id="cal-today">Today</button>
+      <button type="button" id="cal-next">›</button>
+    </div>
+  </div>
+  <div class="cal-months" id="cal-months">week view stand-in</div>
+</section>
+
+<div id="summary">running…</div>
+<pre id="out"></pre>
+
+<script>
+  // A scratch space id: these tests write real localStorage, so they must
+  // never write the planner's own keys.
+  window.CLIENT_DATA = { id: 'test-horizon' };
+  ['pc-ops::test-horizon::horizon::v1',
+   'pc-ops::test-horizon::horizon::anchor',
+   'pc-ops::test-horizon::calendar::v1::calview'].forEach((k) => localStorage.removeItem(k));
+</script>
+<script src="../shared/horizon.js"></script>
+<script>
+(function () {
+  const results = [];
+  const test = (name, fn) => {
+    try { fn(); results.push([true, name]); }
+    catch (e) { results.push([false, name + ' — ' + e.message]); }
+  };
+  const assert = (c, m) => { if (!c) throw new Error(m || 'assertion failed'); };
+  const H = window.Horizon;
+  const wipe = () => { Object.keys(H.load()).forEach((id) => H.remove(id)); };
+  const cardsIn = (mk) => document.querySelectorAll('.hz-col[data-month="' + mk + '"] .hz-card');
+
+  function run() {
+    /* ── The module mounts into the calendar shell ──────────────────── */
+    test('injects a Week | Horizon switcher into the calendar head', () => {
+      const sw = document.querySelector('.cal-head .hz-switch');
+      assert(sw, 'no switcher');
+      assert(sw.querySelectorAll('button').length === 2, 'expected two views');
+    });
+
+    test('Week is the default, and shows the existing calendar', () => {
+      const cal = document.getElementById('planner-cal');
+      assert(!cal.classList.contains('view-horizon'), 'should start on Week');
+      assert(getComputedStyle(document.getElementById('cal-months')).display !== 'none', 'week view must stay visible');
+      assert(getComputedStyle(document.getElementById('hz-root')).display === 'none', 'horizon hidden on Week');
+    });
+
+    test('switching to Horizon swaps the board in, not alongside', () => {
+      H.setView('horizon');
+      assert(getComputedStyle(document.getElementById('cal-months')).display === 'none', 'week grid must hide');
+      assert(getComputedStyle(document.getElementById('hz-root')).display !== 'none', 'horizon must show');
+    });
+
+    test('shows six month columns', () => {
+      assert(document.querySelectorAll('.hz-col').length === 6, 'expected six months');
+    });
+
+    /* ── Data model ─────────────────────────────────────────────────── */
+    test('an item with a date files itself under that month', () => {
+      wipe();
+      const it = H.save({ title: 'Christmas', type: 'event', date: '2026-12-25' });
+      assert(it.month === '2026-12', 'got ' + it.month);
+    });
+
+    test('a lead time derives when preparation starts', () => {
+      wipe();
+      const it = H.save({ title: 'Christmas', type: 'event', date: '2026-12-25', prepWeeks: 8 });
+      assert(it.prepStart === '2026-10-30', 'expected 8 weeks back, got ' + it.prepStart);
+    });
+
+    test('the model keeps the fields Agent Board will need', () => {
+      wipe();
+      const it = H.save({
+        title: 'Client launch', type: 'client', date: '2026-11-02', prepWeeks: 4,
+        client: 'FUDGE', notes: 'staged rollout', source: 'agent',
+        checklist: [{ text: 'Brief in', done: true }],
+      });
+      ['id', 'title', 'type', 'month', 'date', 'prepWeeks', 'prepStart', 'client', 'notes', 'checklist', 'parentId', 'source']
+        .forEach((k) => assert(k in it, 'missing ' + k));
+      assert(it.source === 'agent', 'agent-written items stay marked');
+      assert(it.checklist[0].done === true, 'checklist state survives');
+    });
+
+    test('an unknown type falls back instead of breaking the board', () => {
+      wipe();
+      assert(H.save({ title: 'Odd', type: 'nonsense' }).type === 'event', 'should fall back to a key date');
+    });
+
+    test('items are stored per id, so two devices can edit different ones', () => {
+      wipe();
+      const a = H.save({ title: 'A', month: '2026-10' });
+      const b = H.save({ title: 'B', month: '2026-10' });
+      const all = H.load();
+      assert(all[a.id] && all[b.id], 'both must be addressable by id');
+      assert(Object.keys(all).length === 2, 'no array squashing');
+    });
+
+    /* ── Rendering ──────────────────────────────────────────────────── */
+    test('a month column renders its items, and only its items', () => {
+      wipe();
+      H.save({ title: 'Black Friday', type: 'event', date: '2026-11-27' });
+      H.save({ title: 'Christmas', type: 'event', date: '2026-12-25' });
+      H.setAnchor(new Date(2026, 9, 1));       // Oct 2026 – Mar 2027
+      assert(cardsIn('2026-11').length === 1, 'November holds one');
+      assert(cardsIn('2026-12').length === 1, 'December holds one');
+      assert(cardsIn('2026-10').length === 0, 'October holds none');
+    });
+
+    test('a key date reads as a date; a milestone reads as what it is', () => {
+      wipe();
+      H.save({ title: 'Black Friday', type: 'event', date: '2026-11-27' });
+      H.save({ title: 'Q1 Planning', type: 'business', month: '2026-11' });
+      H.setAnchor(new Date(2026, 9, 1));
+      const col = document.querySelector('.hz-col[data-month="2026-11"]');
+      assert(col.querySelector('.hz-card-date').textContent.trim() === 'Fri 27 Nov', 'expected the event date');
+      assert(col.querySelector('.hz-card-kind').textContent.trim() === 'Business milestone', 'expected the type label');
+    });
+
+    test('colour is restrained and meaningful', () => {
+      wipe();
+      H.save({ title: 'Event', type: 'event', month: '2026-10' });
+      H.save({ title: 'Prep', type: 'prep', month: '2026-10' });
+      H.save({ title: 'Client', type: 'client', month: '2026-10' });
+      H.setAnchor(new Date(2026, 9, 1));
+      const cls = [...cardsIn('2026-10')].map((c) => c.className);
+      assert(cls.some((c) => c.includes('tone-red')), 'fixed dates are warm red');
+      assert(cls.some((c) => c.includes('tone-prep')), 'preparation stays neutral');
+      assert(cls.some((c) => c.includes('tone-green')), 'milestones are green');
+    });
+
+    test('an event with a lead time says when to start preparing', () => {
+      wipe();
+      H.save({ title: 'Christmas', type: 'event', date: '2026-12-25', prepWeeks: 8 });
+      H.setAnchor(new Date(2026, 9, 1));
+      const note = document.querySelector('.hz-col[data-month="2026-12"] .hz-card-prep');
+      assert(note && note.textContent.includes('Fri 30 Oct'), 'expected the prep start on the card');
+    });
+
+    test('a month with nothing in it stays empty and quiet', () => {
+      wipe();
+      H.setAnchor(new Date(2026, 9, 1));
+      const col = document.querySelector('.hz-col[data-month="2026-10"]');
+      assert(col.querySelectorAll('.hz-card').length === 0, 'no cards');
+      assert(col.querySelector('.hz-col-count').textContent === '', 'no "0 items" noise');
+      assert(col.querySelector('.hz-add'), 'but it can still be added to');
+    });
+
+    test('the range moves in steps and comes back to today', () => {
+      const label = () => document.getElementById('hz-range-label').textContent;
+      H.setAnchor(new Date(2026, 9, 1));
+      assert(label() === 'Oct 2026 – Mar 2027', 'got ' + label());
+      document.querySelector('.hz-nav[data-step="1"]').click();
+      assert(label() === 'Jan 2027 – Jun 2027', 'forward: ' + label());
+      document.querySelector('.hz-nav[data-step="-1"]').click();
+      assert(label() === 'Oct 2026 – Mar 2027', 'back: ' + label());
+    });
+
+    /* ── Interactions ───────────────────────────────────────────────── */
+    test('ticking a step on a card sticks, and nothing moves', () => {
+      wipe();
+      const it = H.save({ title: 'Christmas', type: 'event', month: '2026-10',
+                          checklist: [{ text: 'Offers confirmed' }, { text: 'Emails scheduled' }] });
+      H.setAnchor(new Date(2026, 9, 1));
+      document.querySelector('.hz-col[data-month="2026-10"] .hz-check-box').click();
+      assert(H.load()[it.id].checklist[0].done === true, 'the tick is stored');
+      assert(H.load()[it.id].month === '2026-10', 'a ticked item stays in its month');
+      assert(cardsIn('2026-10').length === 1, 'and stays on the board');
+    });
+
+    test('moving a dated item to another month carries its date with it', () => {
+      wipe();
+      const it = H.save({ title: 'Launch', type: 'event', date: '2026-10-24', prepWeeks: 2 });
+      H.setAnchor(new Date(2026, 9, 1));
+      const card = document.querySelector('.hz-card[data-id="' + it.id + '"]');
+      const col = document.querySelector('.hz-col[data-month="2026-11"]');
+      const dt = new DataTransfer();
+      card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      col.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+      const moved = H.load()[it.id];
+      assert(moved.month === '2026-11', 'month follows the drop, got ' + moved.month);
+      assert(moved.date === '2026-11-24', 'the date moves with it, got ' + moved.date);
+      assert(moved.prepStart === '2026-11-10', 'prep start recomputes, got ' + moved.prepStart);
+    });
+
+    test('deleting an item releases the prep cards that pointed at it', () => {
+      wipe();
+      const ev = H.save({ title: 'Christmas', type: 'event', date: '2026-12-25' });
+      const prep = H.save({ title: 'Start Christmas planning', type: 'prep', month: '2026-10', parentId: ev.id });
+      H.remove(ev.id);
+      assert(!H.load()[ev.id], 'the event is gone');
+      assert(H.load()[prep.id], 'its preparation is not deleted with it');
+      assert(H.load()[prep.id].parentId === '', 'but it stops claiming a parent that no longer exists');
+    });
+
+    test('the editor opens on a card and loads it', () => {
+      wipe();
+      const it = H.save({ title: 'Christmas', type: 'event', date: '2026-12-25', prepWeeks: 8, client: 'Retail' });
+      H.setAnchor(new Date(2026, 9, 1));
+      document.querySelector('.hz-card[data-id="' + it.id + '"]').click();
+      assert(document.getElementById('hz-modal').classList.contains('is-open'), 'modal should open');
+      assert(document.getElementById('hz-f-title').value === 'Christmas', 'title loaded');
+      assert(document.getElementById('hz-f-date').value === '2026-12-25', 'date loaded');
+      assert(document.getElementById('hz-f-weeks').value === '8', 'lead time loaded');
+      assert(document.getElementById('hz-f-client').value === 'Retail', 'client loaded');
+      document.getElementById('hz-cancel').click();
+    });
+
+    test('saving an event with a lead time creates its preparation card', () => {
+      wipe();
+      H.setAnchor(new Date(2026, 9, 1));
+      document.querySelector('.hz-col[data-month="2026-12"] .hz-add').click();
+      document.getElementById('hz-f-title').value = 'Christmas';
+      document.getElementById('hz-f-date').value = '2026-12-25';
+      document.getElementById('hz-f-weeks').value = '8';
+      document.getElementById('hz-f-weeks').dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('hz-save').click();
+      const all = Object.values(H.load());
+      const ev = all.find((x) => x.type === 'event');
+      const prep = all.find((x) => x.type === 'prep');
+      assert(ev && prep, 'expected the event and a prep card');
+      assert(prep.month === '2026-10', 'prep lands in the month you must start, got ' + prep.month);
+      assert(prep.parentId === ev.id, 'and stays linked to its event');
+      assert(cardsIn('2026-10').length === 1, 'and shows in October');
+    });
+
+    test('an untitled item is not saved', () => {
+      wipe();
+      document.querySelector('.hz-col[data-month="2026-10"] .hz-add').click();
+      document.getElementById('hz-f-title').value = '   ';
+      document.getElementById('hz-save').click();
+      assert(Object.keys(H.load()).length === 0, 'nothing should be stored');
+      document.getElementById('hz-cancel').click();
+    });
+
+    test('switching back to Week restores the existing calendar', () => {
+      H.setView('week');
+      assert(getComputedStyle(document.getElementById('cal-months')).display !== 'none', 'week grid must come back');
+      assert(getComputedStyle(document.getElementById('hz-root')).display === 'none', 'horizon must hide');
+    });
+
+    wipe();
+    const pass = results.filter((r) => r[0]).length;
+    const fail = results.length - pass;
+    document.getElementById('out').innerHTML = results
+      .map((r) => '<span class="' + (r[0] ? 'ok' : 'bad') + '">' + (r[0] ? 'ok   ' : 'FAIL ') + r[1] + '</span>')
+      .join('\n');
+    document.getElementById('summary').textContent = pass + ' passed, ' + fail + ' failed';
+    window.__TEST_RESULTS = { pass, fail, results };
+  }
+
+  // horizon.js mounts on a short poll; wait for its board before driving it.
+  (function waitForMount(n) {
+    if (document.getElementById('hz-board')) return run();
+    if (n > 60) { document.getElementById('summary').textContent = 'Horizon never mounted'; return; }
+    setTimeout(() => waitForMount(n + 1), 50);
+  })(0);
+})();
+</script>
+</body>
+</html>
