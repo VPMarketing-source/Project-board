@@ -21,6 +21,11 @@
      - delete_calendar_item remove a line from a day by its text
      - edit_calendar_item   change a line's text, keeping its checkbox state
 
+   Horizon and Years (the other two planning layers) add their own tools
+   from api/planning.js: get_horizon / add_horizon_item / edit_horizon_item
+   / delete_horizon_item, and get_years / add_year_goal /
+   add_year_milestone / edit_year_item / delete_year_item / set_year_theme.
+
    Per-item styling
    ----------------
    add_calendar_item / edit_calendar_item accept three optional arguments —
@@ -56,6 +61,11 @@ const FREEFORM_KEY  = STORE + '::freeform';
 // reachable with the key that ships in the browser bundle. Tightening that
 // is separate, and larger, work.
 const { authenticate } = require('./auth.js');
+
+// The other two planning layers — Horizon (preparation) and Years
+// (direction) — live in their own module so this file stays the week
+// planner's. They share this file's Supabase plumbing, passed in as `io`.
+const { PLANNING_TOOLS, callPlanningTool } = require('./planning.js');
 
 const PROTOCOL_VERSION = '2025-06-18';
 
@@ -385,6 +395,10 @@ const TOOLS = [
   },
 ];
 
+// Everything the connector offers: the week planner's tools, then Horizon's
+// and Years'.
+const ALL_TOOLS = TOOLS.concat(PLANNING_TOOLS);
+
 function resolveWeek(week) {
   const today = new Date();
   const curMon = mondayOf(today);
@@ -542,6 +556,9 @@ async function callTool(name, args) {
       '\n\nIt will appear on the planner (it live-syncs).';
   }
 
+  const planning = await callPlanningTool(name, args, { readKey, writeKey });
+  if (planning != null) return planning;
+
   throw new Error('Unknown tool: ' + name);
 }
 
@@ -560,7 +577,7 @@ async function handleMessage(m) {
   }
   if (method === 'notifications/initialized' || (method && method.indexOf('notifications/') === 0)) return null;
   if (method === 'ping') return rpcResult(id, {});
-  if (method === 'tools/list') return rpcResult(id, { tools: TOOLS });
+  if (method === 'tools/list') return rpcResult(id, { tools: ALL_TOOLS });
   if (method === 'tools/call') {
     const nm = params && params.name;
     const args = (params && params.arguments) || {};
