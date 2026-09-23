@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Years — tests</title>
+<!--
+  Browser test for the Years direction layer (shared/years.js), the switcher
+  that carries all three views (shared/calviews.js), and the links between
+  Years and Horizon. Builds the minimal calendar shell shared/calendar.js
+  would render, points CLIENT_DATA at a throwaway id so the real planner's
+  data is never touched, then drives the REAL modules.
+
+  Run: open this file over the dev server, e.g.
+    http://localhost:5555/tests/years.test.html
+
+  Results render on the page and are also exposed on window.__TEST_RESULTS.
+-->
+<link rel="stylesheet" href="../shared/calendar.css" />
+<link rel="stylesheet" href="../shared/calviews.css" />
+<link rel="stylesheet" href="../shared/horizon.css" />
+<link rel="stylesheet" href="../shared/years.css" />
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; padding: 24px; color: #11131a; background: #f7f2e7; }
+  h1 { font-size: 18px; }
+  #summary { font-weight: 700; margin: 12px 0; }
+  #out { background: #0d1117; color: #e6edf3; padding: 14px; border-radius: 8px; white-space: pre-wrap; font: 12px/1.6 ui-monospace, monospace; }
+  .ok { color: #3fb950; } .bad { color: #f85149; }
+  .planner-cal { background: #fff; border: 1px solid #ebe6d4; border-radius: 18px; padding: 20px 24px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>Years</h1>
+
+<section id="planner-cal" class="planner-cal">
+  <div class="cal-head">
+    <button type="button" class="cal-wrap-head" id="cal-wrap-head"><h2 class="cal-wrap-title">Calendar</h2></button>
+    <div class="cal-nav">
+      <button type="button" id="cal-prev">‹</button>
+      <button type="button" id="cal-today">Today</button>
+      <button type="button" id="cal-next">›</button>
+    </div>
+  </div>
+  <div class="cal-months" id="cal-months">week view stand-in</div>
+</section>
+
+<div id="summary">running…</div>
+<pre id="out"></pre>
+
+<script>
+  window.CLIENT_DATA = { id: 'test-years' };
+  ['years::v1', 'years::meta::v1', 'years::anchor', 'horizon::v1', 'horizon::anchor', 'calendar::v1::calview']
+    .forEach((k) => localStorage.removeItem('pc-ops::test-years::' + k));
+</script>
+<script src="../shared/calviews.js"></script>
+<script src="../shared/horizon.js"></script>
+<script src="../shared/years.js"></script>
+<script>
+(function () {
+  const results = [];
+  const test = (name, fn) => {
+    try { fn(); results.push([true, name]); }
+    catch (e) { results.push([false, name + ' — ' + e.message]); }
+  };
+  const assert = (c, m) => { if (!c) throw new Error(m || 'assertion failed'); };
+  const Y = window.Years, H = window.Horizon;
+  const wipe = () => {
+    Object.keys(Y.load()).forEach((id) => Y.remove(id));
+    Object.keys(H.load()).forEach((id) => H.remove(id));
+    Y.saveMeta({});
+  };
+  const YEAR = 2030;                     // fixed, so "current year" never interferes
+  const col = (y) => document.querySelector('.yr-col[data-year="' + y + '"]');
+  const goalsIn = (y, cat) => col(y).querySelectorAll('.yr-sec.tone-' + cat + ' .yr-goal');
+
+  function run() {
+    /* ── Three layers, one switcher ─────────────────────────────────── */
+    test('the switcher carries all three planning layers, in order', () => {
+      const labels = [...document.querySelectorAll('.cal-viewswitch button')].map((b) => b.textContent.trim());
+      assert(labels.join(' | ') === 'Week | Horizon | Years', 'got ' + labels.join(' | '));
+    });
+
+    test('only one view shows at a time', () => {
+      window.CalViews.set('years');
+      assert(getComputedStyle(document.getElementById('yr-root')).display !== 'none', 'years must show');
+      assert(getComputedStyle(document.getElementById('hz-root')).display === 'none', 'horizon must hide');
+      assert(getComputedStyle(document.getElementById('cal-months')).display === 'none', 'week must hide');
+      window.CalViews.set('horizon');
+      assert(getComputedStyle(document.getElementById('yr-root')).display === 'none', 'years must hide again');
+      window.CalViews.set('years');
+    });
+
+    test('the week view keeps its own month arrows to itself', () => {
+      window.CalViews.set('week');
+      assert(getComputedStyle(document.querySelector('.cal-nav')).display !== 'none', 'arrows belong to Week');
+      window.CalViews.set('years');
+      assert(getComputedStyle(document.querySelector('.cal-nav')).display === 'none', 'and are hidden elsewhere');
+    });
+
+    test('three years are visible by default', () => {
+      Y.setAnchor(YEAR);
+      assert(document.querySelectorAll('.yr-col').length === 3, 'expected three years');
+      assert(document.getElementById('yr-range-label').textContent === '2030 – 2032', 'got ' +
+        document.getElementById('yr-range-label').textContent);
+    });
+
+    test('plans, not guarantees — the reminder is present and quiet', () => {
+      const v = document.querySelector('.yr-verse');
+      assert(v && v.textContent.includes('If the Lord wills'), 'expected the line');
+      assert(v.textContent.includes('James 4:15'), 'expected the reference');
+      assert(parseFloat(getComputedStyle(v).fontSize) <= 13, 'it must not dominate');
+    });
+
+    /* ── Data model ─────────────────────────────────────────────────── */
+    test('a goal carries everything the agent layer will need', () => {
+      wipe();
+      const g = Y.save({
+        kind: 'goal', title: 'Reach $50k/month', description: 'Recurring revenue',
+        year: 2031, category: 'business', status: 'active', targetDate: '2031-03-31',
+        metricType: 'currency', currentValue: 14000, targetValue: 50000,
+        linkedClients: ['FUDGE'], linkedProjects: ['Outbound'], linkedHorizon: [],
+        priority: 'high', notes: 'via outbound',
+      });
+      ['id','kind','title','description','year','category','status','targetDate','metricType',
+       'currentValue','targetValue','linkedClients','linkedProjects','linkedHorizon','priority','notes']
+        .forEach((k) => assert(k in g, 'missing ' + k));
+      assert(g.kind === 'goal' && g.priority === 'high', 'stored as written');
+    });
+
+    test('a milestone knows its year, its goal and its Horizon item', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: 2031 });
+      const h = H.save({ title: 'Build outbound process', type: 'prep', month: '2031-01' });
+      const m = Y.save({ kind: 'milestone', title: '$50k/month target', date: '2031-03-31',
+                         goalId: g.id, horizonId: h.id, category: 'business' });
+      assert(m.year === 2031, 'year comes from the date, got ' + m.year);
+      assert(m.month === 2, 'March is month index 2, got ' + m.month);
+      assert(m.goalId === g.id && m.horizonId === h.id, 'both links are kept');
+    });
+
+    test('items are stored per id, so sync can merge two devices', () => {
+      wipe();
+      const a = Y.save({ kind: 'goal', title: 'A', year: YEAR });
+      const b = Y.save({ kind: 'goal', title: 'B', year: YEAR });
+      assert(Object.keys(Y.load()).length === 2 && Y.load()[a.id] && Y.load()[b.id], 'both addressable');
+    });
+
+    test('a year theme is stored beside the year', () => {
+      wipe();
+      Y.saveMeta({ 2031: { theme: 'Increase revenue and build an AI-led team' } });
+      Y.setAnchor(YEAR);
+      assert(col(2031).querySelector('.yr-theme').textContent.includes('AI-led team'), 'theme should render');
+    });
+
+    /* ── Rendering, and staying sparse ──────────────────────────────── */
+    test('goals land in their year and their category', () => {
+      wipe();
+      Y.save({ kind: 'goal', title: '$30k/month', year: YEAR, category: 'business' });
+      Y.save({ kind: 'goal', title: 'Add 4–6 clients', year: YEAR, category: 'clients' });
+      Y.save({ kind: 'goal', title: 'Wedding', year: YEAR, category: 'personal' });
+      Y.save({ kind: 'goal', title: 'Next year thing', year: YEAR + 1, category: 'business' });
+      Y.setAnchor(YEAR);
+      assert(goalsIn(YEAR, 'green').length === 1, 'business');
+      assert(goalsIn(YEAR, 'blue').length === 1, 'clients');
+      assert(goalsIn(YEAR, 'peach').length === 1, 'personal');
+      assert(goalsIn(YEAR + 1, 'green').length === 1, 'next year keeps its own');
+    });
+
+    test('every year has the three strategic sections and nothing more', () => {
+      const secs = [...col(YEAR).querySelectorAll('.yr-sec-title')].map((h) => h.textContent);
+      assert(secs.join(',') === 'BUSINESS,CLIENTS,PERSONAL', 'got ' + secs.join(','));
+    });
+
+    test('progress shows only where there is a real measure', () => {
+      wipe();
+      Y.save({ kind: 'goal', title: 'Plain goal', year: YEAR, category: 'business' });
+      Y.save({ kind: 'goal', title: 'Measured', year: YEAR, category: 'business',
+               metricType: 'currency', currentValue: 14000, targetValue: 30000 });
+      Y.setAnchor(YEAR);
+      const rows = [...goalsIn(YEAR, 'green')];
+      const plain = rows.find((r) => r.textContent.includes('Plain goal'));
+      const measured = rows.find((r) => r.textContent.includes('Measured'));
+      assert(!plain.querySelector('.yr-bar'), 'no bar without a measure');
+      assert(measured.querySelector('.yr-bar'), 'a bar where there is one');
+      assert(measured.querySelector('.yr-metric-text').textContent === '$14k → $30k',
+        'got ' + measured.querySelector('.yr-metric-text').textContent);
+    });
+
+    test('a target with no current value states the target, without a bar', () => {
+      wipe();
+      Y.save({ kind: 'goal', title: 'Target only', year: YEAR, category: 'business',
+               metricType: 'currency', targetValue: 50000 });
+      Y.setAnchor(YEAR);
+      const row = goalsIn(YEAR, 'green')[0];
+      assert(!row.querySelector('.yr-bar'), 'nothing to fill in yet');
+      assert(row.querySelector('.yr-metric-text').textContent === 'Target: $50k',
+        'got ' + row.querySelector('.yr-metric-text').textContent);
+    });
+
+    test('milestone rows are smaller than the strategic lines above them', () => {
+      wipe();
+      Y.save({ kind: 'goal', title: 'A goal', year: YEAR, category: 'business' });
+      Y.save({ kind: 'milestone', title: 'Christmas', date: YEAR + '-12-25' });
+      Y.setAnchor(YEAR);
+      const goalSize = parseFloat(getComputedStyle(col(YEAR).querySelector('.yr-goal-title')).fontSize);
+      const mileSize = parseFloat(getComputedStyle(col(YEAR).querySelector('.yr-mile-title')).fontSize);
+      assert(mileSize < goalSize, 'milestones must read as the smaller layer');
+    });
+
+    test('milestones sort by month and show the month they fall in', () => {
+      wipe();
+      Y.save({ kind: 'milestone', title: 'Christmas', date: YEAR + '-12-25' });
+      Y.save({ kind: 'milestone', title: 'Q1 planning', date: YEAR + '-01-12' });
+      Y.setAnchor(YEAR);
+      const rows = [...col(YEAR).querySelectorAll('.yr-mile')];
+      assert(rows[0].textContent.includes('Q1 planning'), 'January first');
+      assert(rows[0].querySelector('.yr-mile-mon').textContent === 'JAN', 'month chip');
+      assert(rows[1].querySelector('.yr-mile-mon').textContent === 'DEC', 'December last');
+    });
+
+    test('the current year is identifiable, without shouting', () => {
+      const now = new Date().getFullYear();
+      Y.setAnchor(now);
+      assert(col(now).classList.contains('is-current'), 'current year marked');
+      assert(col(now).querySelector('.yr-chip').textContent === 'Current year', 'and labelled');
+      assert(!col(now + 1).querySelector('.yr-chip'), 'other years are not');
+      Y.setAnchor(YEAR);
+    });
+
+    test('the range moves a year at a time', () => {
+      const label = () => document.getElementById('yr-range-label').textContent;
+      Y.setAnchor(YEAR);
+      document.querySelector('.yr-nav[data-step="1"]').click();
+      assert(label() === '2031 – 2033', 'forward: ' + label());
+      document.querySelector('.yr-nav[data-step="-1"]').click();
+      assert(label() === '2030 – 2032', 'back: ' + label());
+    });
+
+    /* ── The layers connect ─────────────────────────────────────────── */
+    test('a goal can be linked to the Horizon work that supports it', () => {
+      wipe();
+      const h1 = H.save({ title: 'Build outbound process', type: 'prep', month: '2031-01' });
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: 2031, linkedHorizon: [h1.id] });
+      const support = Y.supportFor(g.id);
+      assert(support.horizon.length === 1, 'expected one linked Horizon item');
+      assert(support.horizon[0].title === 'Build outbound process', 'and the right one');
+    });
+
+    test('goals with nothing supporting them can be found', () => {
+      wipe();
+      const h = H.save({ title: 'Outbound', type: 'prep', month: '2031-01' });
+      const supported = Y.save({ kind: 'goal', title: 'Supported', year: 2031, linkedHorizon: [h.id] });
+      const bare = Y.save({ kind: 'goal', title: 'Bare', year: 2031 });
+      const byMilestone = Y.save({ kind: 'goal', title: 'Has a milestone', year: 2031 });
+      Y.save({ kind: 'milestone', title: 'March target', date: '2031-03-01', goalId: byMilestone.id });
+      const un = Y.unsupportedGoals().map((g) => g.id);
+      assert(un.indexOf(bare.id) >= 0, 'the bare goal is unsupported');
+      assert(un.indexOf(supported.id) < 0, 'a linked goal is not');
+      assert(un.indexOf(byMilestone.id) < 0, 'nor is one with a milestone');
+    });
+
+    test('Horizon work that serves no long-term goal can be found', () => {
+      wipe();
+      const used = H.save({ title: 'Outbound', type: 'prep', month: '2031-01' });
+      const spare = H.save({ title: 'Something unconnected', type: 'prep', month: '2031-02' });
+      Y.save({ kind: 'goal', title: 'Reach $50k/month', year: 2031, linkedHorizon: [used.id] });
+      const orphans = Y.orphanHorizonItems().map((h) => h.id);
+      assert(orphans.indexOf(spare.id) >= 0, 'the unconnected item is listed');
+      assert(orphans.indexOf(used.id) < 0, 'the linked one is not');
+    });
+
+    test('an achieved goal is not chased for missing support', () => {
+      wipe();
+      const done = Y.save({ kind: 'goal', title: 'Done thing', year: 2031, status: 'done' });
+      assert(Y.unsupportedGoals().every((g) => g.id !== done.id), 'finished goals are left alone');
+    });
+
+    /* ── Interactions ───────────────────────────────────────────────── */
+    test('the editor opens on a goal and loads it', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: YEAR, category: 'business',
+                         status: 'active', metricType: 'currency', currentValue: 14000, targetValue: 50000 });
+      Y.setAnchor(YEAR);
+      col(YEAR).querySelector('.yr-goal').click();
+      const m = document.getElementById('yr-modal');
+      assert(m.classList.contains('is-open'), 'modal opens');
+      assert(m.classList.contains('is-goal'), 'in goal mode');
+      assert(document.getElementById('yr-f-title').value === 'Reach $50k/month', 'title');
+      assert(document.getElementById('yr-f-status').value === 'active', 'status');
+      assert(document.getElementById('yr-f-target-val').value === '50000', 'target');
+      document.getElementById('yr-cancel').click();
+    });
+
+    test('adding a goal files it under the section it was added from', () => {
+      wipe();
+      Y.setAnchor(YEAR);
+      col(YEAR).querySelector('.yr-sec.tone-blue .yr-addgoal').click();
+      document.getElementById('yr-f-title').value = 'Add 4–6 new clients';
+      document.getElementById('yr-save').click();
+      assert(goalsIn(YEAR, 'blue').length === 1, 'lands under Clients');
+      assert(Object.values(Y.load())[0].year === YEAR, 'and in the year it came from');
+    });
+
+    test('adding a milestone puts it in the key dates list', () => {
+      wipe();
+      Y.setAnchor(YEAR);
+      col(YEAR).querySelector('.yr-addmile').click();
+      const m = document.getElementById('yr-modal');
+      assert(m.classList.contains('is-milestone'), 'in milestone mode');
+      document.getElementById('yr-f-title').value = 'Christmas';
+      document.getElementById('yr-f-date').value = YEAR + '-12-25';
+      document.getElementById('yr-save').click();
+      assert(col(YEAR).querySelectorAll('.yr-mile').length === 1, 'shows as a key date');
+      assert(col(YEAR).querySelector('.yr-mile-mon').textContent === 'DEC', 'in December');
+    });
+
+    test('an untitled item is not saved', () => {
+      wipe();
+      Y.setAnchor(YEAR);
+      col(YEAR).querySelector('.yr-addmile').click();
+      document.getElementById('yr-f-title').value = '  ';
+      document.getElementById('yr-save').click();
+      assert(Object.keys(Y.load()).length === 0, 'nothing stored');
+      document.getElementById('yr-cancel').click();
+    });
+
+    test('dragging a goal to another year takes its target date with it', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: YEAR, category: 'business',
+                         targetDate: YEAR + '-03-31' });
+      Y.setAnchor(YEAR);
+      const row = document.querySelector('.yr-goal[data-id="' + g.id + '"]');
+      const target = col(YEAR + 1);
+      const dt = new DataTransfer();
+      row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      target.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+      const moved = Y.load()[g.id];
+      assert(moved.year === YEAR + 1, 'year follows the drop, got ' + moved.year);
+      assert(moved.targetDate === (YEAR + 1) + '-03-31', 'date follows it, got ' + moved.targetDate);
+    });
+
+    test('deleting a goal leaves its milestone in place, unlinked', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Reach $50k/month', year: 2031 });
+      const m = Y.save({ kind: 'milestone', title: 'March target', date: '2031-03-01', goalId: g.id });
+      Y.remove(g.id);
+      assert(!Y.load()[g.id], 'goal gone');
+      assert(Y.load()[m.id], 'milestone kept');
+      assert(Y.load()[m.id].goalId === '', 'and no longer claims a goal that is gone');
+    });
+
+    test('an empty section still offers a way in', () => {
+      wipe();
+      Y.setAnchor(YEAR);
+      const add = col(YEAR).querySelector('.yr-sec.tone-green .yr-addgoal');
+      assert(Number(getComputedStyle(add).opacity) === 1, '+ Add goal must be visible when empty');
+    });
+
+    wipe();
+    const pass = results.filter((r) => r[0]).length;
+    const fail = results.length - pass;
+    document.getElementById('out').innerHTML = results
+      .map((r) => '<span class="' + (r[0] ? 'ok' : 'bad') + '">' + (r[0] ? 'ok   ' : 'FAIL ') + r[1] + '</span>')
+      .join('\n');
+    document.getElementById('summary').textContent = pass + ' passed, ' + fail + ' failed';
+    window.__TEST_RESULTS = { pass, fail, results };
+  }
+
+  (function waitForMount(n) {
+    if (document.getElementById('yr-board') && document.getElementById('hz-board')) return run();
+    if (n > 80) { document.getElementById('summary').textContent = 'Years never mounted'; return; }
+    setTimeout(() => waitForMount(n + 1), 50);
+  })(0);
+})();
+</script>
+</body>
+</html>

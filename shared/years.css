@@ -1,0 +1,332 @@
+/* =========================================================================
+   Project Clarity — Years (direction layer)
+
+   Companion to shared/years.js. Load after calendar.css and horizon.css:
+   it reuses their tokens and their form styles, so all three planning
+   layers read as one product.
+
+   The governing rule is sparseness. A year column is mostly white space
+   with a handful of lines in it; the milestone rows at the bottom are
+   deliberately smaller than the strategic sections above them, because
+   they exist to connect this view to Horizon, not to compete with it.
+   ========================================================================= */
+
+:root {
+  --yr-green:      #1c7a45;
+  --yr-green-bg:   #eef5f0;
+  --yr-blue:       #3a5fb8;
+  --yr-blue-bg:    #eef1f9;
+  --yr-peach:      #c0654a;
+  --yr-peach-bg:   #fbf0ec;
+}
+
+.yr-root { display: block; }
+
+/* ── Head ────────────────────────────────────────────────────────── */
+.yr-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 2px 0 20px;
+}
+.yr-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cal-ink);
+}
+/* Plans, not guarantees — present but never loud. */
+.yr-verse {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: #9a9684;
+}
+.yr-verse span { font-style: normal; font-size: 11px; letter-spacing: 0.02em; }
+
+.yr-range { display: flex; align-items: center; gap: 6px; }
+.yr-range-label {
+  font: 600 13px/1 'Inter', -apple-system, sans-serif;
+  color: var(--cal-ink);
+  padding: 0 8px;
+  min-width: 96px;
+  text-align: center;
+}
+.yr-nav, .yr-addyear {
+  background: #f3efe1;
+  border: 1px solid #e6e2d2;
+  color: var(--cal-ink);
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  border-radius: var(--cal-radius-sm);
+  font: 600 13px/1 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.yr-nav:hover, .yr-addyear:hover { background: var(--cal-card-border); }
+
+/* ── Board ───────────────────────────────────────────────────────── */
+.yr-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.yr-col {
+  background: #fff;
+  border: 1px solid var(--cal-card-border);
+  border-radius: var(--cal-radius-lg);
+  padding: 24px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.yr-col.is-current { border-color: #ddd6bd; background: #fffdf7; }
+.yr-col.is-drop { border-color: var(--cal-blue-line); background: var(--cal-blue-faint); }
+
+.yr-col-head { margin-bottom: 22px; }
+.yr-col-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.yr-year {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--cal-ink);
+}
+/* "Current year" — identifiable, not highlighted. */
+.yr-chip {
+  font: 600 10.5px/1 'Inter', -apple-system, sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--yr-green);
+  background: var(--yr-green-bg);
+  border-radius: 20px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.yr-theme {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #4a4d57;
+  cursor: text;
+  border-radius: 6px;
+  outline: none;
+}
+.yr-theme:hover { background: #faf7ec; box-shadow: 0 0 0 4px #faf7ec; }
+.yr-theme:focus-visible { box-shadow: 0 0 0 3px var(--cal-blue-faint); }
+.yr-theme-empty { color: #b3ae9c; }
+.yr-theme-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  border: 1px solid var(--cal-blue-line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: 400 13.5px/1.4 'Inter', -apple-system, sans-serif;
+  color: #4a4d57;
+  outline: none;
+}
+
+/* ── Sections ────────────────────────────────────────────────────── */
+.yr-sec { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--cal-border); }
+.yr-sec-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.yr-sec-icon {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cal-cream);
+  color: var(--cal-muted);
+}
+.yr-sec-icon svg { width: 14px; height: 14px; }
+.yr-sec.tone-green .yr-sec-icon { background: var(--yr-green-bg); color: var(--yr-green); }
+.yr-sec.tone-blue  .yr-sec-icon { background: var(--yr-blue-bg);  color: var(--yr-blue); }
+.yr-sec.tone-peach .yr-sec-icon { background: var(--yr-peach-bg); color: var(--yr-peach); }
+.yr-sec-title {
+  margin: 0;
+  font: 700 11px/1 'Inter', -apple-system, sans-serif;
+  letter-spacing: 0.07em;
+  color: var(--cal-ink);
+}
+
+.yr-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.yr-goal {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 6px 6px 2px;
+  margin: 0 -6px 0 -2px;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+  transition: background 120ms ease;
+}
+.yr-goal:hover { background: #faf7ec; }
+.yr-goal:focus-visible { box-shadow: 0 0 0 3px var(--cal-blue-faint); }
+.yr-goal.is-dragging { opacity: 0.45; }
+.yr-goal-mark {
+  flex: 0 0 auto;
+  width: 12px; height: 12px;
+  border: 1.5px solid #c7c2a9;
+  border-radius: 50%;
+  background: #fff;
+}
+.yr-goal.status-active .yr-goal-mark { border-color: var(--yr-blue); box-shadow: inset 0 0 0 3px var(--yr-blue-bg); }
+.yr-goal.status-done .yr-goal-mark { background: var(--yr-green); border-color: var(--yr-green); }
+.yr-goal.status-paused .yr-goal-mark { border-style: dashed; }
+.yr-goal.status-done .yr-goal-title { color: #9a9684; text-decoration: line-through; }
+.yr-goal-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #2b2f3a;
+}
+.yr-when {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--cal-muted);
+  white-space: nowrap;
+}
+
+/* Progress only where there is a real measure — understated by design. */
+.yr-metric { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.yr-bar {
+  display: block;
+  width: 62px; height: 4px;
+  border-radius: 3px;
+  background: #ece7d6;
+  overflow: hidden;
+}
+.yr-bar > span { display: block; height: 100%; background: var(--yr-green); border-radius: 3px; }
+.yr-metric-text { font-size: 11px; color: var(--cal-muted); white-space: nowrap; }
+
+/* "+ Add goal" stays out of the way until you look at the section. */
+.yr-addgoal {
+  align-self: flex-start;
+  margin-top: 6px;
+  background: none;
+  border: 0;
+  padding: 3px 0;
+  color: var(--cal-muted);
+  font: 500 12px/1 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, color 120ms ease;
+}
+.yr-sec:hover .yr-addgoal,
+.yr-sec:focus-within .yr-addgoal,
+.yr-sec.is-empty .yr-addgoal { opacity: 1; }
+.yr-addgoal:hover { color: var(--cal-ink); }
+.yr-addgoal:focus-visible { opacity: 1; outline: 2px solid var(--cal-blue-line); outline-offset: 2px; }
+
+/* ── Key dates / milestones ──────────────────────────────────────
+   Smaller than everything above: these connect the year to Horizon,
+   they are not the year's content. */
+.yr-miles { margin-top: auto; padding-top: 4px; }
+.yr-miles-title {
+  margin: 0 0 10px;
+  font: 700 12px/1 'Inter', -apple-system, sans-serif;
+  color: var(--cal-ink);
+}
+.yr-miles-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.yr-mile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--cal-border);
+  border-radius: 10px;
+  background: #fdfbf4;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.yr-mile:hover { border-color: var(--cal-card-border); background: #faf7ec; }
+.yr-mile:focus-visible { box-shadow: 0 0 0 3px var(--cal-blue-faint); }
+.yr-mile.is-dragging { opacity: 0.45; }
+.yr-mile-mon {
+  flex: 0 0 auto;
+  width: 34px;
+  text-align: center;
+  font: 700 10px/1 'Inter', -apple-system, sans-serif;
+  letter-spacing: 0.06em;
+  color: var(--cal-muted);
+  background: #f3efe1;
+  border-radius: 6px;
+  padding: 6px 0;
+}
+.yr-mile.tone-green .yr-mile-mon { background: var(--yr-green-bg); color: var(--yr-green); }
+.yr-mile.tone-blue  .yr-mile-mon { background: var(--yr-blue-bg);  color: var(--yr-blue); }
+.yr-mile.tone-peach .yr-mile-mon { background: var(--yr-peach-bg); color: var(--yr-peach); }
+.yr-mile-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.yr-mile-title { font-size: 12.5px; font-weight: 600; color: var(--cal-ink); line-height: 1.35; }
+.yr-mile-sub { font-size: 11px; color: var(--cal-muted); line-height: 1.35; }
+.yr-mile-chev { flex: 0 0 auto; color: #c3beac; font-size: 15px; line-height: 1; }
+
+.yr-addmile {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #ddd8c4;
+  color: var(--cal-muted);
+  border-radius: var(--cal-radius-md);
+  padding: 9px;
+  font: 500 12px/1 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.yr-addmile:hover { border-color: #c9c3ac; color: var(--cal-ink); background: #fbf9f1; }
+
+/* ── Editor ──────────────────────────────────────────────────────
+   Shares horizon.css's form styles; only the parts unique to a goal or a
+   milestone differ, and each kind hides the other's fields. */
+.yr-modal-card { max-width: 540px; max-height: 88vh; overflow-y: auto; }
+.yr-modal.is-goal .yr-mile-only,
+.yr-modal.is-milestone .yr-goal-only { display: none; }
+.yr-metric-values .hz-weeks input { width: 100%; }
+
+.yr-links {
+  max-height: 148px;
+  overflow-y: auto;
+  border: 1px solid #e6e2d2;
+  border-radius: var(--cal-radius-sm);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.yr-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.yr-link:hover { background: #faf7ec; }
+.yr-link-when { flex: 0 0 auto; width: 56px; color: var(--cal-muted); font-size: 11px; }
+.yr-link-title { flex: 1 1 auto; min-width: 0; color: #2b2f3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yr-link-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--cal-muted); }
+
+/* ── Narrow screens ─────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .yr-board { grid-auto-flow: column; grid-auto-columns: minmax(280px, 320px); grid-template-columns: none; }
+  .yr-addgoal { opacity: 1; }        /* no hover on touch */
+}
+@media (max-width: 640px) {
+  .yr-head { align-items: flex-start; }
+  .yr-range-label { min-width: 0; }
+  .yr-col { padding: 20px 18px 16px; }
+  .yr-year { font-size: 26px; }
+}

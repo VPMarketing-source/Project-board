@@ -56,7 +56,6 @@
   const CID = C.id;
 
   const KEY      = 'pc-ops::' + CID + '::horizon::v1';
-  const VIEW_KEY = 'pc-ops::' + CID + '::calendar::v1::calview';
   const ANCHOR_KEY = 'pc-ops::' + CID + '::horizon::anchor';
   const SPAN = 6;                          // months visible at once
   const STEP = 3;                          // months the arrows move
@@ -187,22 +186,12 @@
 
   /* ── View state ────────────────────────────────────────────────────── */
   const state = {
-    view: localStorage.getItem(VIEW_KEY) === 'horizon' ? 'horizon' : 'week',
     anchor: parseMonth(localStorage.getItem(ANCHOR_KEY)) || new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     open: null,        // id of the item being edited
   };
-  function setView(v) {
-    state.view = v === 'horizon' ? 'horizon' : 'week';
-    localStorage.setItem(VIEW_KEY, state.view);
-    const cal = document.getElementById('planner-cal');
-    if (cal) cal.classList.toggle('view-horizon', state.view === 'horizon');
-    document.querySelectorAll('.hz-switch button').forEach((b) => {
-      const on = b.dataset.view === state.view;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    if (state.view === 'horizon') render();
-  }
+  // Kept as a thin alias: the switcher itself lives in shared/calviews.js.
+  function setView(v) { window.CalViews.set(v); }
+
   function setAnchor(d) {
     state.anchor = new Date(d.getFullYear(), d.getMonth(), 1);
     localStorage.setItem(ANCHOR_KEY, monthKey(state.anchor));
@@ -219,28 +208,6 @@
     const head = cal && cal.querySelector('.cal-head');
     if (!cal || !head) return false;
     if (document.getElementById('hz-root')) return true;
-
-    // Week | Horizon, sitting just before the month arrows.
-    const sw = document.createElement('div');
-    sw.className = 'hz-switch';
-    sw.setAttribute('role', 'tablist');
-    sw.setAttribute('aria-label', 'Calendar view');
-    sw.innerHTML =
-      '<button type="button" role="tab" data-view="week">Week</button>' +
-      '<button type="button" role="tab" data-view="horizon">Horizon</button>';
-    // Group the switcher with the month arrows on the right, so it keeps
-    // the same spot when Horizon hides the arrows — toggling views must not
-    // make the control you just clicked jump across the header.
-    const nav = head.querySelector('.cal-nav');
-    const right = document.createElement('div');
-    right.className = 'hz-head-right';
-    head.appendChild(right);
-    if (nav) right.appendChild(nav);
-    right.appendChild(sw);      // last, so hiding the arrows can't shift it
-    sw.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-view]');
-      if (b) setView(b.dataset.view);
-    });
 
     const root = document.createElement('div');
     root.id = 'hz-root';
@@ -263,6 +230,10 @@
     if (months && months.parentNode === cal) cal.insertBefore(root, months.nextSibling);
     else cal.appendChild(root);
 
+    // Register with the shared switcher: it owns which view is on, and
+    // repaints this board whenever Horizon is the one showing.
+    window.CalViews.register({ id: 'horizon', label: 'Horizon', order: 1, els: [root], onShow: render });
+
     root.querySelector('.hz-range').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-step]');
       if (!b) return;
@@ -272,7 +243,6 @@
     });
 
     buildEditor();
-    setView(state.view);
     return true;
   }
 
@@ -691,7 +661,7 @@
      calendar.js builds its shell asynchronously (and waits for the
      dashboard when there is one), so poll briefly for it. */
   function boot(attempt) {
-    if (mount()) return;
+    if (window.CalViews && window.CalViews.ready() && mount()) return;
     if (attempt > 60) return;
     setTimeout(() => boot((attempt || 0) + 1), 50);
   }

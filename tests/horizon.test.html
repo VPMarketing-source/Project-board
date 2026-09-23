@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Horizon — tests</title>
 <!--
-  Browser test for the Horizon long-term planning view (shared/horizon.js).
+  Browser test for the Horizon long-term planning view (shared/horizon.js),
+  driven through the shared view switcher (shared/calviews.js).
   It builds the minimal calendar shell that shared/calendar.js would render,
   points CLIENT_DATA at a throwaway id so the real planner's data is never
   touched, then drives the REAL module: add, edit, tick, move, navigate.
@@ -16,6 +17,7 @@
   Results render on the page and are also exposed on window.__TEST_RESULTS.
 -->
 <link rel="stylesheet" href="../shared/calendar.css" />
+<link rel="stylesheet" href="../shared/calviews.css" />
 <link rel="stylesheet" href="../shared/horizon.css" />
 <style>
   body { font-family: 'Inter', system-ui, sans-serif; padding: 24px; color: #11131a; background: #f7f2e7; }
@@ -53,6 +55,7 @@
    'pc-ops::test-horizon::horizon::anchor',
    'pc-ops::test-horizon::calendar::v1::calview'].forEach((k) => localStorage.removeItem(k));
 </script>
+<script src="../shared/calviews.js"></script>
 <script src="../shared/horizon.js"></script>
 <script>
 (function () {
@@ -68,10 +71,12 @@
 
   function run() {
     /* ── The module mounts into the calendar shell ──────────────────── */
-    test('injects a Week | Horizon switcher into the calendar head', () => {
-      const sw = document.querySelector('.cal-head .hz-switch');
+    test('registers itself as a view on the shared switcher', () => {
+      const sw = document.querySelector('.cal-head .cal-viewswitch');
       assert(sw, 'no switcher');
-      assert(sw.querySelectorAll('button').length === 2, 'expected two views');
+      const labels = [...sw.querySelectorAll('button')].map((b) => b.textContent.trim());
+      assert(labels.indexOf('Week') === 0, 'Week comes first, got ' + labels.join('|'));
+      assert(labels.indexOf('Horizon') === 1, 'Horizon second, got ' + labels.join('|'));
     });
 
     test('Week is the default, and shows the existing calendar', () => {
