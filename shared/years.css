@@ -14,7 +14,7 @@
 :root {
   --yr-green:      #1c7a45;
   --yr-green-bg:   #eef5f0;
-  --yr-blue:       #3a5fb8;
+  --yr-blue:       #3a5fb8;   /* the "in progress" mark, not a category */
   --yr-blue-bg:    #eef1f9;
   --yr-peach:      #c0654a;
   --yr-peach-bg:   #fbf0ec;
@@ -147,7 +147,6 @@
 }
 .yr-sec-icon svg { width: 14px; height: 14px; }
 .yr-sec.tone-green .yr-sec-icon { background: var(--yr-green-bg); color: var(--yr-green); }
-.yr-sec.tone-blue  .yr-sec-icon { background: var(--yr-blue-bg);  color: var(--yr-blue); }
 .yr-sec.tone-peach .yr-sec-icon { background: var(--yr-peach-bg); color: var(--yr-peach); }
 .yr-sec-title {
   margin: 0;
@@ -264,7 +263,6 @@
   padding: 6px 0;
 }
 .yr-mile.tone-green .yr-mile-mon { background: var(--yr-green-bg); color: var(--yr-green); }
-.yr-mile.tone-blue  .yr-mile-mon { background: var(--yr-blue-bg);  color: var(--yr-blue); }
 .yr-mile.tone-peach .yr-mile-mon { background: var(--yr-peach-bg); color: var(--yr-peach); }
 .yr-mile-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .yr-mile-title { font-size: 12.5px; font-weight: 600; color: var(--cal-ink); line-height: 1.35; }

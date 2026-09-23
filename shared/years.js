@@ -22,7 +22,7 @@
      goal = {
        id, kind: 'goal', title, description,
        year,            2027
-       category,        'business' | 'clients' | 'personal'
+       category,        'business' | 'personal'
        status,          'planned' | 'active' | 'done' | 'paused'
        targetDate,      'YYYY-MM-DD' | ''
        metricType,      '' | 'currency' | 'number' | 'percent'
@@ -69,11 +69,12 @@
   const SPAN = 3;                          // years visible at once
 
   /* ── Categories ────────────────────────────────────────────────────
-     Green for the business, blue for clients, a warm peach for personal,
-     neutral for a plain milestone. Nothing louder than that. */
+     Green for the business, a warm peach for personal, neutral for a plain
+     milestone. Nothing louder than that. Client direction lives inside the
+     business goals rather than in a column of its own, so an older item
+     filed under a category that no longer exists reads as Business. */
   const CATS = [
     { id: 'business', label: 'Business', tone: 'green' },
-    { id: 'clients',  label: 'Clients',  tone: 'blue' },
     { id: 'personal', label: 'Personal', tone: 'peach' },
   ];
   const catOf = (id) => CATS.find((c) => c.id === id) || CATS[0];
@@ -92,7 +93,6 @@
 
   const ICONS = {
     business: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
-    clients: '<circle cx="9" cy="8" r="3"/><path d="M2 21v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/><path d="M17 8a3 3 0 0 1 0 6"/>',
     personal: '<path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1z"/>',
     milestone: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
   };

@@ -155,19 +155,25 @@
     test('goals land in their year and their category', () => {
       wipe();
       Y.save({ kind: 'goal', title: '$30k/month', year: YEAR, category: 'business' });
-      Y.save({ kind: 'goal', title: 'Add 4–6 clients', year: YEAR, category: 'clients' });
       Y.save({ kind: 'goal', title: 'Wedding', year: YEAR, category: 'personal' });
       Y.save({ kind: 'goal', title: 'Next year thing', year: YEAR + 1, category: 'business' });
       Y.setAnchor(YEAR);
       assert(goalsIn(YEAR, 'green').length === 1, 'business');
-      assert(goalsIn(YEAR, 'blue').length === 1, 'clients');
       assert(goalsIn(YEAR, 'peach').length === 1, 'personal');
       assert(goalsIn(YEAR + 1, 'green').length === 1, 'next year keeps its own');
     });
 
-    test('every year has the three strategic sections and nothing more', () => {
+    test('every year has the two strategic sections and nothing more', () => {
       const secs = [...col(YEAR).querySelectorAll('.yr-sec-title')].map((h) => h.textContent);
-      assert(secs.join(',') === 'BUSINESS,CLIENTS,PERSONAL', 'got ' + secs.join(','));
+      assert(secs.join(',') === 'BUSINESS,PERSONAL', 'got ' + secs.join(','));
+    });
+
+    test('a goal filed under a category that no longer exists reads as Business', () => {
+      wipe();
+      const g = Y.save({ kind: 'goal', title: 'Add 4–6 new clients', year: YEAR, category: 'clients' });
+      assert(g.category === 'business', 'got ' + g.category);
+      Y.setAnchor(YEAR);
+      assert(goalsIn(YEAR, 'green').length === 1, 'and still shows, under Business');
     });
 
     test('progress shows only where there is a real measure', () => {
@@ -302,10 +308,10 @@
     test('adding a goal files it under the section it was added from', () => {
       wipe();
       Y.setAnchor(YEAR);
-      col(YEAR).querySelector('.yr-sec.tone-blue .yr-addgoal').click();
-      document.getElementById('yr-f-title').value = 'Add 4–6 new clients';
+      col(YEAR).querySelector('.yr-sec.tone-peach .yr-addgoal').click();
+      document.getElementById('yr-f-title').value = 'Wedding';
       document.getElementById('yr-save').click();
-      assert(goalsIn(YEAR, 'blue').length === 1, 'lands under Clients');
+      assert(goalsIn(YEAR, 'peach').length === 1, 'lands under Personal');
       assert(Object.values(Y.load())[0].year === YEAR, 'and in the year it came from');
     });
 
