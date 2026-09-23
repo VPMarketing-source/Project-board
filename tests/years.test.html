@@ -104,11 +104,10 @@
         document.getElementById('yr-range-label').textContent);
     });
 
-    test('plans, not guarantees — the reminder is present and quiet', () => {
-      const v = document.querySelector('.yr-verse');
-      assert(v && v.textContent.includes('If the Lord wills'), 'expected the line');
-      assert(v.textContent.includes('James 4:15'), 'expected the reference');
-      assert(parseFloat(getComputedStyle(v).fontSize) <= 13, 'it must not dominate');
+    test('the heading says what the view is for, and nothing else', () => {
+      const head = document.querySelector('.yr-head');
+      assert(head.querySelector('.yr-title').textContent === 'Direction', 'expected the heading');
+      assert(!head.textContent.includes('James'), 'no scripture line');
     });
 
     /* ── Data model ─────────────────────────────────────────────────── */

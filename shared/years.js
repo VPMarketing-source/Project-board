@@ -267,8 +267,7 @@
       '<div class="yr-head">' +
         '<div class="yr-intro">' +
           '<h3 class="yr-title">Direction</h3>' +
-          // These are plans, not guarantees. Quiet on purpose.
-          '<p class="yr-verse">“If the Lord wills…” <span>— James 4:15</span></p>' +
+          '<p class="yr-sub">Where the business and the next few years are heading.</p>' +
         '</div>' +
         '<div class="yr-range">' +
           '<button type="button" class="yr-nav" data-step="-1" aria-label="Earlier years">‹</button>' +

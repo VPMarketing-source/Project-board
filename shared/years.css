@@ -38,14 +38,11 @@
   letter-spacing: -0.01em;
   color: var(--cal-ink);
 }
-/* Plans, not guarantees — present but never loud. */
-.yr-verse {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  font-style: italic;
-  color: #9a9684;
+.yr-sub {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--cal-muted);
 }
-.yr-verse span { font-style: normal; font-size: 11px; letter-spacing: 0.02em; }
 
 .yr-range { display: flex; align-items: center; gap: 6px; }
 .yr-range-label {
