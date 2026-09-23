@@ -1,0 +1,321 @@
+/* =========================================================================
+   Project Clarity — Horizon (long-term planning view)
+
+   Companion to shared/horizon.js. Load after calendar.css: it reuses that
+   file's tokens (--cal-ink, --cal-muted, --cal-border, --cal-cream …) so
+   Horizon reads as part of the calendar rather than a second product.
+
+   The layout rule here is restraint. Columns are wide, cards are light,
+   and the vertical rhythm is loose on purpose — this view is meant to be
+   understood in a few seconds, which only works if it stays uncrowded.
+   ========================================================================= */
+
+/* ── Tones ───────────────────────────────────────────────────────────
+   Green = milestones that mean progress. Warm red = fixed dates you
+   cannot move. Beige = preparation, the quiet majority. Muted = personal
+   capacity. Nothing brighter than these. */
+:root {
+  --hz-green:      #1c7a45;
+  --hz-green-bg:   #f2f7f2;
+  --hz-green-line: #dfe9e0;
+  --hz-red:        #c0392b;
+  --hz-red-bg:     #fdf4f1;
+  --hz-red-line:   #f1e0da;
+  --hz-prep-bg:    #faf6e7;
+  --hz-prep-line:  #ece5d0;
+  --hz-muted-bg:   #f7f6f2;
+  --hz-muted-line: #e8e5db;
+}
+
+/* The board is shown and hidden by shared/calviews.js (inline display),
+   so it only has to say what it looks like when it is the view on. */
+.hz-root { display: block; }
+
+/* ── Head ────────────────────────────────────────────────────────── */
+.hz-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 2px 0 18px;
+}
+.hz-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cal-ink);
+}
+.hz-sub {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--cal-muted);
+}
+.hz-range { display: flex; align-items: center; gap: 6px; }
+.hz-range-label {
+  font: 600 13px/1 'Inter', -apple-system, sans-serif;
+  color: var(--cal-ink);
+  padding: 0 8px;
+  min-width: 150px;
+  text-align: center;
+}
+.hz-nav, .hz-today {
+  background: #f3efe1;
+  border: 1px solid #e6e2d2;
+  color: var(--cal-ink);
+  height: 32px;
+  min-width: 32px;
+  padding: 0 10px;
+  border-radius: var(--cal-radius-sm);
+  font: 600 13px/1 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hz-nav:hover, .hz-today:hover { background: var(--cal-card-border); }
+
+/* ── Board ───────────────────────────────────────────────────────── */
+.hz-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(210px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.hz-col {
+  background: #fff;
+  border: 1px solid var(--cal-card-border);
+  border-radius: var(--cal-radius-lg);
+  padding: 16px 14px 14px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.hz-col.is-current { border-color: #ddd6bd; background: #fffdf7; }
+.hz-col.is-drop { border-color: var(--cal-blue-line); background: var(--cal-blue-faint); }
+
+.hz-col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cal-border);
+}
+.hz-col-when { display: flex; flex-direction: column; gap: 2px; }
+.hz-col-mon {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--cal-ink);
+}
+.hz-col-year { font-size: 11px; color: var(--cal-muted); }
+.hz-col-count { font-size: 11px; color: var(--cal-muted); white-space: nowrap; }
+
+.hz-cards { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; }
+
+/* ── Cards ───────────────────────────────────────────────────────── */
+.hz-card {
+  border: 1px solid var(--hz-prep-line);
+  background: var(--hz-prep-bg);
+  border-radius: var(--cal-radius-md);
+  padding: 12px 12px 11px;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 140ms ease, transform 140ms ease, border-color 140ms ease;
+}
+.hz-card:hover { box-shadow: 0 4px 14px rgba(17,19,26,0.07); }
+.hz-card:focus-visible { box-shadow: 0 0 0 3px var(--cal-blue-faint); border-color: var(--cal-blue-line); }
+.hz-card.is-dragging { opacity: 0.45; transform: scale(0.99); }
+
+.hz-card.tone-green { background: var(--hz-green-bg); border-color: var(--hz-green-line); }
+.hz-card.tone-red   { background: var(--hz-red-bg);   border-color: var(--hz-red-line); }
+.hz-card.tone-muted { background: var(--hz-muted-bg); border-color: var(--hz-muted-line); }
+
+.hz-card-top { display: flex; align-items: flex-start; gap: 9px; }
+.hz-card-icon {
+  flex: 0 0 auto;
+  color: var(--cal-muted);
+  margin-top: 1px;
+}
+.hz-card-icon svg { width: 15px; height: 15px; display: block; }
+.hz-card.tone-green .hz-card-icon { color: var(--hz-green); }
+.hz-card.tone-red .hz-card-icon { color: var(--hz-red); }
+
+.hz-card-headings { flex: 1 1 auto; min-width: 0; }
+.hz-card-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--cal-ink);
+}
+.hz-untitled { color: var(--cal-muted); font-weight: 500; }
+.hz-card-date, .hz-card-kind {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--cal-muted);
+}
+.hz-card-date { color: var(--hz-red); font-weight: 600; }
+.hz-card.tone-green .hz-card-date { color: var(--hz-green); }
+/* A personal or preparation date is information, not a deadline — it should
+   not shout in the colour reserved for fixed commitments. */
+.hz-card.tone-muted .hz-card-date,
+.hz-card:not(.tone-green):not(.tone-red) .hz-card-date { color: var(--cal-muted); }
+
+/* The status dot, top right — the only pure colour on a card. */
+.hz-dot {
+  flex: 0 0 auto;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-top: 4px;
+  background: #b3ae9c;
+}
+.hz-card.tone-green .hz-dot { background: var(--hz-green); }
+.hz-card.tone-red .hz-dot { background: var(--hz-red); }
+
+.hz-card-prep {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--cal-muted);
+  font-style: italic;
+}
+
+/* ── Card checklists ─────────────────────────────────────────────── */
+.hz-check {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid rgba(17,19,26,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hz-check-row { display: flex; align-items: flex-start; gap: 7px; }
+.hz-check-box {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 12px; height: 12px;
+  margin-top: 2px;
+  border: 1.5px solid #c7c2a9;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.hz-check-box:hover { border-color: var(--cal-muted); }
+.hz-check-row.is-done .hz-check-box { background: var(--cal-muted); border-color: var(--cal-muted); }
+.hz-check-text { font-size: 12px; line-height: 1.4; color: #4a4d57; }
+.hz-check-row.is-done .hz-check-text { color: #9a9684; text-decoration: line-through; }
+.hz-check-more { font-size: 11px; color: var(--cal-muted); padding-left: 19px; }
+
+/* ── Add item ────────────────────────────────────────────────────── */
+.hz-add {
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #ddd8c4;
+  color: var(--cal-muted);
+  border-radius: var(--cal-radius-md);
+  padding: 10px;
+  font: 500 12px/1 'Inter', -apple-system, sans-serif;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.hz-add:hover { border-color: #c9c3ac; color: var(--cal-ink); background: #fbf9f1; }
+
+.hz-empty {
+  max-width: 560px;
+  margin: 22px auto 6px;
+  text-align: center;
+  color: var(--cal-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.hz-empty p { margin: 0 0 12px; }
+
+/* ── Editor ──────────────────────────────────────────────────────── */
+.hz-modal-card { max-width: 520px; max-height: 88vh; overflow-y: auto; }
+.hz-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.hz-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hz-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.hz-field > span {
+  font: 600 11px/1 'Inter', -apple-system, sans-serif;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--cal-muted);
+}
+.hz-field input[type="text"],
+.hz-field input[type="date"],
+.hz-field input[type="month"],
+.hz-field input[type="number"],
+.hz-field select,
+.hz-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e6e2d2;
+  border-radius: var(--cal-radius-sm);
+  padding: 8px 10px;
+  font: 400 13px/1.45 'Inter', -apple-system, sans-serif;
+  color: var(--cal-ink);
+  background: #fff;
+  outline: none;
+}
+.hz-field textarea { resize: vertical; }
+.hz-field input:focus, .hz-field select:focus, .hz-field textarea:focus {
+  border-color: var(--cal-blue-line);
+  box-shadow: 0 0 0 3px var(--cal-blue-faint);
+}
+.hz-weeks { display: flex; align-items: center; gap: 8px; }
+.hz-weeks input { flex: 1 1 auto; }
+.hz-weeks em { font-style: normal; font-size: 12px; color: var(--cal-muted); }
+.hz-prep-hint { margin: -4px 0 0; font-size: 12px; color: var(--cal-muted); display: none; }
+.hz-prep-hint.is-on { display: block; }
+
+.hz-checklist { display: flex; flex-direction: column; gap: 6px; }
+.hz-check-edit { display: flex; align-items: center; gap: 8px; }
+.hz-check-edit .hz-ce-text {
+  flex: 1 1 auto;
+  border: 1px solid #e6e2d2;
+  border-radius: var(--cal-radius-sm);
+  padding: 7px 9px;
+  font: 400 13px/1.4 'Inter', -apple-system, sans-serif;
+  outline: none;
+}
+.hz-check-edit .hz-ce-text:focus { border-color: var(--cal-blue-line); box-shadow: 0 0 0 3px var(--cal-blue-faint); }
+.hz-ce-del {
+  background: transparent; border: 0; color: var(--cal-muted);
+  font-size: 17px; line-height: 1; cursor: pointer; padding: 2px 4px;
+}
+.hz-ce-del:hover { color: var(--hz-red); }
+.hz-link {
+  align-self: flex-start;
+  background: none; border: 0; padding: 4px 0;
+  color: var(--cal-blue); font: 600 12px/1 'Inter', -apple-system, sans-serif; cursor: pointer;
+}
+.hz-actions { align-items: center; }
+.hz-spacer { flex: 1 1 auto; }
+.hz-danger { color: var(--hz-red); }
+.hz-danger:hover { background: var(--hz-red-bg); border-color: var(--hz-red-line); }
+
+/* ── Narrow screens ──────────────────────────────────────────────
+   Keep the month columns their real width and let the board scroll
+   sideways: squeezing six months into a phone makes them unreadable,
+   which defeats the view. */
+@media (max-width: 1100px) {
+  .hz-board { grid-auto-flow: column; grid-auto-columns: minmax(210px, 240px); grid-template-columns: none; }
+  .hz-col { min-height: 220px; }
+}
+@media (max-width: 640px) {
+  .hz-head { align-items: flex-start; }
+  .hz-range-label { min-width: 0; }
+  .hz-row { grid-template-columns: 1fr; }
+}
