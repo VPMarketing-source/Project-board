@@ -136,6 +136,24 @@
       assert(Object.keys(all).length === 2, 'no array squashing');
     });
 
+    test('an item can name the yearly goal and projects it serves', () => {
+      wipe();
+      const it = H.save({ title: 'Build outbound process', type: 'prep', month: '2027-01',
+                          linkedGoal: 'yr_fake_goal', linkedProjects: 'Outbound, Website' });
+      assert(it.linkedGoal === 'yr_fake_goal', 'the goal link is kept');
+      assert(it.linkedProjects.join('|') === 'Outbound|Website', 'projects parse from a list, got ' + it.linkedProjects);
+    });
+
+    test('the editor offers the goal and project links', () => {
+      wipe();
+      const it = H.save({ title: 'Outbound', type: 'prep', month: '2026-10', linkedProjects: ['Outbound'] });
+      H.setAnchor(new Date(2026, 9, 1));
+      document.querySelector('.hz-card[data-id="' + it.id + '"]').click();
+      assert(document.getElementById('hz-f-goal'), 'goal picker present');
+      assert(document.getElementById('hz-f-projects').value === 'Outbound', 'projects loaded');
+      document.getElementById('hz-cancel').click();
+    });
+
     /* ── Rendering ──────────────────────────────────────────────────── */
     test('a month column renders its items, and only its items', () => {
       wipe();
