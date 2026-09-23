@@ -51,13 +51,22 @@
   }
   const TODAY = ymd(new Date());
   const TOMORROW = ymd(new Date(Date.now() + 86400000));
-  const hhmm = (offsetMinutes) => {
-    const d = new Date(Date.now() + offsetMinutes * 60000);
-    const h = d.getHours(), m = d.getMinutes();
-    const ap = h < 12 ? 'am' : 'pm';
-    const h12 = ((h + 11) % 12) + 1;
-    return h12 + ':' + String(m).padStart(2, '0') + ap;
-  };
+
+  /* Times are the one thing here that cannot be tested against "now": a
+     run at 23:55 would see "90 minutes from now" as 1:25am, i.e. earlier
+     today, and rightly strike it through. So the clock is pinned to midday
+     for the timed cases and the times are written out literally. */
+  function withNoonClock(fn) {
+    const Real = window.Date;
+    const fixed = new Real(); fixed.setHours(12, 0, 0, 0);
+    function Fake(...a) { return a.length ? new Real(...a) : new Real(fixed.getTime()); }
+    Fake.prototype = Real.prototype;
+    Fake.now = () => fixed.getTime();
+    Fake.parse = Real.parse;
+    Fake.UTC = Real.UTC;
+    window.Date = Fake;
+    try { return fn(); } finally { window.Date = Real; }
+  }
 
   function cell(dayKey, html) {
     const el = document.createElement('div');
@@ -95,7 +104,7 @@
 
   /* ── A timed item: bold red, no checkbox, struck once its time passes ── */
   test('timed item: bold red with no checkbox, not struck before its time', () => {
-    const c = cell(TODAY, LINE(hhmm(90) + ' - Call Marlene', 'pc-b pc-fg-red'));
+    const c = withNoonClock(() => cell(TODAY, LINE('3:00pm - Call Marlene', 'pc-b pc-fg-red')));
     const line = c.querySelector('.pc-b');
     assert(!c.querySelector('input'), 'no checkbox expected');
     assert(bold(line), 'expected bold');
@@ -104,7 +113,7 @@
   });
 
   test('timed item: struck once its time has passed, keeping red and bold', () => {
-    const c = cell(TODAY, LINE(hhmm(-90) + ' - Call Marlene', 'pc-b pc-fg-red'));
+    const c = withNoonClock(() => cell(TODAY, LINE('10:30am - Call Marlene', 'pc-b pc-fg-red')));
     const line = c.querySelector('.pc-b');
     assert(struck(line), 'expected a line through a passed time');
     assert(bold(line) && color(line) === 'rgb(192, 57, 43)', 'must keep its red and bold');
@@ -121,9 +130,9 @@
   });
 
   test('a time range strikes on its END time', () => {
-    const early = cell(TODAY, LINE(hhmm(-120) + ' - ' + hhmm(60) + ' Workshop', 'pc-b pc-fg-red'));
+    const early = withNoonClock(() => cell(TODAY, LINE('10:00am - 1:00pm Workshop', 'pc-b pc-fg-red')));
     assert(!struck(early.querySelector('.pc-b')), 'still running');
-    const over = cell(TODAY, LINE(hhmm(-120) + ' - ' + hhmm(-30) + ' Workshop', 'pc-b pc-fg-red'));
+    const over = withNoonClock(() => cell(TODAY, LINE('9:00am - 11:30am Workshop', 'pc-b pc-fg-red')));
     assert(struck(over.querySelector('.pc-b')), 'finished');
   });
 
