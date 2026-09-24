@@ -171,6 +171,8 @@
       const it = normalise(all[id], id);
       (out[it.month] || (out[it.month] = [])).push(it);
     });
+    // Years' key dates sit alongside this board's own items, read live.
+    yearsMilestones().forEach((m) => { (out[m.month] || (out[m.month] = [])).push(m); });
     // Dated things first, in date order; undated milestones after, by title.
     Object.keys(out).forEach((m) => out[m].sort((a, b) => {
       if (a.date && b.date) return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
@@ -194,6 +196,49 @@
     // A prep card outlives its event, but stops claiming a parent that is gone.
     Object.keys(all).forEach((k) => { if (all[k] && all[k].parentId === id) all[k].parentId = ''; });
     saveAll(all);
+  }
+
+  /* ── Key dates from the Years board ──────────────────────────────────
+     A dated thing entered once should be visible from both altitudes: on
+     the Years card as one of that year's key dates, and here in the month
+     it actually falls in. So Horizon READS them at render time — they are
+     never copied into this board, which is what stops the two drifting
+     apart when a date moves. They stay owned by Years: not draggable here,
+     and clicking one opens it there.
+
+     Only dated milestones qualify. A yearly goal is a direction, not an
+     event, and does not belong in a month column. */
+  const YEARS_KEY = 'pc-ops::' + CID + '::years::v1';
+
+  function yearsMilestones() {
+    let items = [];
+    try {
+      if (window.Years && typeof window.Years.items === 'function') {
+        items = window.Years.items();
+      } else {
+        const raw = JSON.parse(localStorage.getItem(YEARS_KEY) || '{}');
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          items = Object.keys(raw).map((id) => Object.assign({ id }, raw[id]));
+        }
+      }
+    } catch (_) { return []; }
+    return items.filter((i) => i && i.kind === 'milestone' && /^\d{4}-\d{2}-\d{2}$/.test(i.date || ''))
+      .map((i) => ({
+        id: i.id,
+        title: String(i.title || ''),
+        date: i.date,
+        month: i.date.slice(0, 7),
+        // A milestone's category is the Years vocabulary; map it onto the
+        // tone this board already uses so nothing new appears on screen.
+        type: i.category === 'business' ? 'business' : i.category === 'personal' ? 'personal' : 'event',
+        notes: String(i.notes || ''),
+        // The rest of the shape a card is drawn from. A key date carries no
+        // checklist or lead time of its own — those belong to work planned
+        // here, not to a date noted a year out.
+        client: '', checklist: [], prepWeeks: null, prepStart: '',
+        fromYears: true,
+      }))
+      .filter((i) => i.title);
   }
 
   /* ── View state ────────────────────────────────────────────────────── */
@@ -300,15 +345,20 @@
   function cardEl(it) {
     const t = typeOf(it.type);
     const el = document.createElement('article');
-    el.className = 'hz-card tone-' + t.tone;
+    el.className = 'hz-card tone-' + t.tone + (it.fromYears ? ' is-from-years' : '');
     el.dataset.id = it.id;
-    el.setAttribute('draggable', 'true');
+    // A key date belongs to the Years board: it cannot be dragged into
+    // another month from here, because the date is what decides its month.
+    el.setAttribute('draggable', it.fromYears ? 'false' : 'true');
+    if (it.fromYears) el.dataset.fromYears = '1';
     el.setAttribute('tabindex', '0');
     el.setAttribute('role', 'button');
 
     // Subtitle: a key date shows its date, everything else says what it is.
     const sub = it.date ? niceDate(it.date) : t.label;
     const subClass = it.date ? 'hz-card-date' : 'hz-card-kind';
+    // Said once, quietly: where this one actually lives.
+    const origin = it.fromYears ? '<span class="hz-from-years">Years</span>' : '';
 
     // Preparation lead time is the whole point of the view, so an event
     // that has one says so in a quiet line rather than hiding it in the editor.
@@ -336,7 +386,7 @@
         '<span class="hz-card-icon">' + icon(it.type) + '</span>' +
         '<div class="hz-card-headings">' +
           '<h4 class="hz-card-title">' + (esc(it.title) || '<span class="hz-untitled">Untitled</span>') + '</h4>' +
-          '<p class="' + subClass + '">' + esc(sub) + (it.client ? ' · ' + esc(it.client) : '') + '</p>' +
+          '<p class="' + subClass + '">' + esc(sub) + (it.client ? ' · ' + esc(it.client) : '') + origin + '</p>' +
         '</div>' +
         '<span class="hz-dot" aria-hidden="true"></span>' +
       '</div>' +
@@ -349,6 +399,7 @@
   // hard to judge, and the seasonal anchors are the same every year.
   function renderEmptyState(board, byMonth) {
     if (Object.keys(byMonth).length) return;
+    if (yearsMilestones().length) return;       // the months are not bare
     const note = document.createElement('div');
     note.className = 'hz-empty';
     note.innerHTML =
@@ -364,12 +415,22 @@
       b.addEventListener('click', () => openEditor(null, b.dataset.month));
     });
     board.querySelectorAll('.hz-card').forEach((card) => {
+      const openWhereItLives = () => {
+        // A key date is edited on the Years board, not here — one date, one
+        // place to change it.
+        if (card.dataset.fromYears && window.Years && typeof window.Years.openItem === 'function') {
+          if (window.CalViews) window.CalViews.set('years');
+          window.Years.openItem(card.dataset.id);
+          return;
+        }
+        openEditor(card.dataset.id);
+      };
       card.addEventListener('click', (e) => {
         if (e.target.closest('.hz-check-box')) return;      // ticking isn't opening
-        openEditor(card.dataset.id);
+        openWhereItLives();
       });
       card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditor(card.dataset.id); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openWhereItLives(); }
       });
       card.querySelectorAll('.hz-check-box').forEach((box) => {
         box.addEventListener('click', (e) => {
