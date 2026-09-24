@@ -68,6 +68,9 @@
   const H = window.Horizon;
   const wipe = () => { Object.keys(H.load()).forEach((id) => H.remove(id)); };
   const cardsIn = (mk) => document.querySelectorAll('.hz-col[data-month="' + mk + '"] .hz-card');
+  const YEARS_KEY = 'pc-ops::test-horizon::years::v1';
+  const setYears = (o) => localStorage.setItem(YEARS_KEY, JSON.stringify(o));
+  const clearYears = () => localStorage.removeItem(YEARS_KEY);
 
   function run() {
     /* ── The module mounts into the calendar shell ──────────────────── */
@@ -212,6 +215,71 @@
       assert(label() === 'Jan 2027 – Jun 2027', 'forward: ' + label());
       document.querySelector('.hz-nav[data-step="-1"]').click();
       assert(label() === 'Oct 2026 – Mar 2027', 'back: ' + label());
+    });
+
+    /* ── Key dates borrowed from the Years board ────────────────────── */
+    test('a dated key date from Years shows in the month it falls in', () => {
+      wipe(); clearYears();
+      setYears({ yr_a: { kind: 'milestone', title: '2XU Half Marathon', date: '2026-11-22', category: 'personal' } });
+      H.setAnchor(new Date(2026, 9, 1));
+      const nov = [...cardsIn('2026-11')];
+      assert(nov.length === 1, 'expected it in November, got ' + nov.length);
+      assert(nov[0].querySelector('.hz-card-title').textContent === '2XU Half Marathon', 'wrong card');
+      assert(nov[0].querySelector('.hz-card-date').textContent.indexOf('Sun 22 Nov') === 0, 'shows its date');
+      clearYears();
+    });
+
+    test('it is marked as living on the Years board', () => {
+      wipe(); clearYears();
+      setYears({ yr_a: { kind: 'milestone', title: 'Christmas', date: '2026-12-25' } });
+      H.setAnchor(new Date(2026, 9, 1));
+      const card = cardsIn('2026-12')[0];
+      assert(card.querySelector('.hz-from-years'), 'expected the Years marker');
+      assert(card.getAttribute('draggable') === 'false', 'its month comes from its date, so it cannot be dragged');
+      clearYears();
+    });
+
+    test('nothing is copied: Horizon\'s own store stays untouched', () => {
+      wipe(); clearYears();
+      setYears({ yr_a: { kind: 'milestone', title: 'Christmas', date: '2026-12-25' } });
+      H.setAnchor(new Date(2026, 9, 1));
+      assert(cardsIn('2026-12').length === 1, 'it shows');
+      assert(Object.keys(H.load()).length === 0, 'but Horizon stores nothing of it');
+      clearYears();
+    });
+
+    test('moving the date in Years moves it here, because it is read not copied', () => {
+      wipe(); clearYears();
+      setYears({ yr_a: { kind: 'milestone', title: 'Launch', date: '2026-11-10' } });
+      H.setAnchor(new Date(2026, 9, 1));
+      assert(cardsIn('2026-11').length === 1, 'November first');
+      setYears({ yr_a: { kind: 'milestone', title: 'Launch', date: '2026-12-10' } });
+      H.render();
+      assert(cardsIn('2026-11').length === 0 && cardsIn('2026-12').length === 1, 'it followed its date');
+      clearYears();
+    });
+
+    test('a yearly goal is a direction, not a date, so it never appears', () => {
+      wipe(); clearYears();
+      setYears({
+        yr_g: { kind: 'goal', title: '$30k/month revenue', year: 2026, category: 'business' },
+        yr_u: { kind: 'milestone', title: 'No date yet', year: 2026, month: 10 },
+      });
+      H.setAnchor(new Date(2026, 9, 1));
+      const all = [...document.querySelectorAll('.hz-card-title')].map((t) => t.textContent);
+      assert(all.indexOf('$30k/month revenue') === -1, 'a goal is not a month card');
+      assert(all.indexOf('No date yet') === -1, 'nor is an undated milestone');
+      clearYears();
+    });
+
+    test('a month carrying only Years dates is not offered the seed', () => {
+      wipe(); clearYears();
+      setYears({ yr_a: { kind: 'milestone', title: 'Christmas', date: '2026-12-25' } });
+      H.setAnchor(new Date(2026, 9, 1));
+      assert(document.querySelectorAll('.hz-empty').length === 0, 'the board is not bare');
+      clearYears();
+      H.render();
+      assert(document.querySelectorAll('.hz-empty').length === 1, 'and is again once they are gone');
     });
 
     /* ── Interactions ───────────────────────────────────────────────── */

@@ -686,6 +686,9 @@
   // The seam for the agent layer: read and write the same items, and ask
   // the questions the links were designed to answer.
   window.Years = {
+    // openItem lets another view hand an item back to the board that owns it
+    // (shared/horizon.js shows Years' key dates in their month, read-only).
+    openItem: (id) => openEditor(id),
     load: loadAll, save: putItem, remove: deleteItem, normalise,
     loadMeta, saveMeta, items, goalsFor, milestonesFor,
     unsupportedGoals, orphanHorizonItems, supportFor,
