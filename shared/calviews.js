@@ -18,6 +18,13 @@
      CalViews.set(id)            switch programmatically
      CalViews.get()              the current view id
 
+   A view can also be asked for in the URL — ?view=years, or #years — which
+   is how anything that renders the page without a person clicking (a
+   screenshot tool, a link in a message) gets the view it actually wants.
+   Without it a fresh browser has no stored choice and always lands on
+   Week. A view asked for this way is shown but not remembered, so a
+   screenshot link never changes what the owner sees next time.
+
    Showing and hiding is done with inline display, so a view's own
    stylesheet keeps the last word on how it looks when it IS shown (the
    week grid, for one, still hides itself when the calendar is collapsed).
@@ -29,8 +36,17 @@
   if (!C || !C.id) return;
   const VIEW_KEY = 'pc-ops::' + C.id + '::calendar::v1::calview';
 
+  // ?view=years / #years, when present, beats the remembered choice.
+  function viewFromUrl(search, hash) {
+    const q = /[?&]view=([a-z]+)/i.exec(String(search || ''));
+    const h = /^#([a-z]+)$/i.exec(String(hash || ''));
+    const asked = (q && q[1]) || (h && h[1]) || '';
+    return asked ? asked.toLowerCase() : '';
+  }
+
   const views = [];                        // { id, label, order, els, onShow }
-  let current = localStorage.getItem(VIEW_KEY) || 'week';
+  const asked = viewFromUrl(window.location.search, window.location.hash);
+  let current = asked || localStorage.getItem(VIEW_KEY) || 'week';
   let switchEl = null;
 
   const elsOf = (v) => (v.els || []).map((e) => (typeof e === 'string' ? document.querySelector(e) : e)).filter(Boolean);
@@ -114,6 +130,11 @@
     // Week is the calendar that already exists: its grid and its own month
     // arrows. Registering it here means no other module has to know about it.
     register({ id: 'week', label: 'Week', order: 0, els: ['#cal-months', '.cal-nav'] });
+
+    // Asking for a view by URL implies wanting to see it, so an accordion
+    // that happens to be collapsed (the state syncs between devices) must
+    // not hand back a blank page.
+    if (asked) cal.classList.remove('is-collapsed');
     return true;
   }
 
@@ -126,7 +147,8 @@
   else boot(0);
 
   window.CalViews = {
-    register, set, get: () => shown(), apply,
+    register, set, get: () => shown(), apply, viewFromUrl,
+    asked: () => asked,
     ready: () => !!switchEl,
   };
 })();

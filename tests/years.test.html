@@ -97,6 +97,24 @@
       assert(getComputedStyle(document.querySelector('.cal-nav')).display === 'none', 'and are hidden elsewhere');
     });
 
+    test('a view can be asked for in the URL, for anything that cannot click', () => {
+      const f = window.CalViews.viewFromUrl;
+      assert(f('?view=years') === 'years', 'query');
+      assert(f('?foo=1&view=horizon') === 'horizon', 'query among others');
+      assert(f('', '#years') === 'years', 'hash');
+      assert(f('?view=YEARS') === 'years', 'case does not matter');
+      assert(f('') === '', 'nothing asked');
+      assert(f('?viewport=1') === '', 'a lookalike parameter is not a view');
+    });
+
+    test('an unknown view in the URL falls back rather than blanking the page', () => {
+      assert(window.CalViews.viewFromUrl('?view=nonsense') === 'nonsense', 'it is read…');
+      // …but only a registered view is ever shown; see CalViews.shown().
+      window.CalViews.set('nonsense');
+      assert(['week', 'horizon', 'years'].indexOf(window.CalViews.get()) >= 0, 'something real is shown');
+      window.CalViews.set('years');
+    });
+
     test('three years are visible by default', () => {
       Y.setAnchor(YEAR);
       assert(document.querySelectorAll('.yr-col').length === 3, 'expected three years');
