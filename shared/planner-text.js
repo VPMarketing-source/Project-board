@@ -460,6 +460,39 @@
       if (ce) ce.dispatchEvent(new Event('input', { bubbles: true }));
     }, true);
 
+    // Backspace at the start of a toggle's title takes the toggle away,
+    // the way Notion and ClickUp do: the title and body become plain lines.
+    // A toggle with no text in it at all goes completely, leaving one empty
+    // line. Without this the chevron is contenteditable=false, so an empty
+    // toggle could not be deleted by hand.
+    const visibleText = (el) => (el ? el.textContent || '' : '').replace(/[​\s]/g, '');
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Backspace' || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return;
+      let node = sel.anchorNode;
+      if (node && node.nodeType === 3) node = node.parentNode;
+      const title = node && node.closest && node.closest('.pc-drop-title');
+      if (!title) return;
+      const drop = title.closest('.pc-drop');
+      const ce = drop && drop.closest('[contenteditable="true"]');
+      if (!ce) return;
+      const before = document.createRange();
+      before.selectNodeContents(title);
+      before.setEnd(sel.anchorNode, sel.anchorOffset);
+      if (before.toString().replace(/[​\s]/g, '')) return; // not at the start
+      e.preventDefault();
+      if (!visibleText(drop)) {
+        const line = document.createElement('div');
+        line.innerHTML = '<br>';
+        drop.replaceWith(line);
+        placeCaret(line, false);
+      } else {
+        unmakeDropdown(drop);
+      }
+      ce.dispatchEvent(new Event('input', { bubbles: true }));
+    }, true);
+
     // ── Paste sanitiser ─────────────────────────────────────────────
     // Rich HTML pasted from ClickUp / Apple / the web arrives wrapped in
     // deeply nested <div style="letter-spacing…"> / <span> junk with
