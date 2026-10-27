@@ -120,6 +120,32 @@
       document.querySelector('.fmt-toolbar [data-action="dropdown"]').click();
       assert('clicking the dropdown button on an existing toggle unwraps it', !ed.querySelector('.pc-drop'));
 
+      // ── 9. Backspace at the start of the title removes the toggle ──
+      const pressBackspace = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }));
+      const caretAtStart = (el) => { const r = document.createRange(); r.selectNodeContents(el); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+      reset('<div id="d">Gym</div>');
+      drop = makeDropdownFromLine(document.getElementById('d'));
+      drop.querySelector('.pc-drop-body > div').textContent = 'Legs';
+      caretAtStart(drop.querySelector('.pc-drop-title'));
+      pressBackspace();
+      assert('Backspace at the start of a title unwraps the toggle', !ed.querySelector('.pc-drop'));
+      assert('its title and body stay as plain lines', /Gym/.test(ed.textContent) && /Legs/.test(ed.textContent), ed.textContent);
+
+      // ── 10. An empty toggle (the one stuck on 27 Oct) goes completely ─
+      reset('<div class="pc-drop is-collapsed"><div class="pc-drop-head"><span class="pc-drop-toggle" contenteditable="false" aria-label="Collapse section"><svg viewBox="0 0 24 24"></svg></span><span class="pc-drop-title"><div class="pc-todo"></div><div><div class="is-past"><div class="pc-todo"><span class="pc-todo-text">\n</span></div></div></div></span></div></div>');
+      ed.focus();
+      caretAtStart(ed.querySelector('.pc-todo-text'));
+      pressBackspace();
+      assert('Backspace in an empty toggle removes it, chevron and all', !ed.querySelector('.pc-drop') && !ed.querySelector('.pc-drop-toggle'), ed.innerHTML);
+
+      // ── 11. Backspace mid-title is left to the browser ─────────────
+      reset('<div id="e">Clients</div>');
+      drop = makeDropdownFromLine(document.getElementById('e'));
+      (function () { const t = drop.querySelector('.pc-drop-title').firstChild; const r = document.createRange(); r.setStart(t, 3); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); })();
+      const ev = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+      document.dispatchEvent(ev);
+      assert('Backspace in the middle of a title does not remove the toggle', !!ed.querySelector('.pc-drop') && !ev.defaultPrevented);
+
       // ── Report ─────────────────────────────────────────────────────
       ed.innerHTML = '';
       const passed = results.filter((r) => r.pass).length;
