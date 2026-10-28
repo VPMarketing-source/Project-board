@@ -1038,3 +1038,77 @@
     font-size: 12px;
   }
 .cal-cell-colormenu .ccm-clear:hover { color: var(--cal-ink); border-color: var(--cal-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Phones: the week swipes a day at a time
+   Seven day columns plus the section labels can't share a phone's width
+   (each day came out ~20px wide). Below 720px the section grid becomes a
+   sideways scroller instead: the section labels stay pinned on the left,
+   each day is most of the screen wide with the next one peeking in, and a
+   swipe snaps to the next day. Layout only — same cells, same data, same
+   saving; desktop is untouched. The weekday header can't stay pinned to
+   the top inside a sideways scroller, so on phones it scrolls with the
+   week. */
+@media (max-width: 720px) {
+  .cal-sec-grid {
+    --sec-label-w: 74px;
+    --sec-day-w: calc((100cqw - var(--sec-label-w)) * 0.86);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: var(--sec-label-w);
+    -webkit-overflow-scrolling: touch;
+  }
+  .cal-week-body:has(.cal-sec-grid),
+  .cal-weeks > .cal-week > .cal-week-body:has(.cal-sec-grid) { container-type: inline-size; }
+  .cal-sec-headrow,
+  .cal-sec-row {
+    grid-template-columns: var(--sec-label-w) repeat(7, var(--sec-day-w));
+    width: max-content;
+    min-width: 100%;
+  }
+  .cal-sec-headrow { position: relative; top: auto; }
+  .cal-sec-dayhead { scroll-snap-align: start; }
+  /* Labels stay put while the days slide underneath. */
+  .cal-sec-corner,
+  .cal-sec-label {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+  }
+  .cal-sec-label { padding: 8px 6px; }
+  .cal-sec-name { font-size: 12px; overflow-wrap: anywhere; }
+  /* No hover on a phone: keep the move/delete tools visible but quiet. */
+  .cal-sec-tools { opacity: 0.55; flex-wrap: wrap; }
+  .cal-sec-tools button { width: 22px; height: 22px; }
+  .cal-sec-cell { font-size: 15px; padding: 8px 10px; }
+  /* A dragged divider is too fine to grab with a thumb; give it room. */
+  .cal-sec-divider { height: 12px; }
+  .cal-sec-add {
+    position: sticky;
+    left: 0;
+    margin-left: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+
+  /* Give the week the width: trim the padding each wrapper adds. */
+  .planner-cal { padding: 12px 10px 14px; margin: 12px 0 20px; }
+  .cal-month-body { padding: 0 8px 10px; }
+  .cal-weeks > .cal-week > .cal-week-body:has(.cal-sec-grid) { padding: 0 0 10px; }
+
+  /* Week tabs: two to a row, big enough to tap, and not pinned — five
+     wrapped tabs pinned to the top would cover a third of the screen. */
+  .cal-weeks > .cal-week > .cal-week-head {
+    position: static;
+    flex: 1 1 calc(50% - 6px);
+    max-width: none;
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+  .cal-weeks::before { display: none; }
+  .cal-weeks > .cal-week > .cal-week-head { flex-wrap: wrap; row-gap: 2px; }
+  .cal-weeks > .cal-week > .cal-week-head .cal-week-label,
+  .cal-weeks > .cal-week > .cal-week-head .cal-week-range { white-space: nowrap; }
+  .cal-weeks > .cal-week > .cal-week-head .cal-week-range { font-size: 12px; }
+}
