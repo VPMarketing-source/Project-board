@@ -1090,8 +1090,29 @@
         const today = container.querySelector('.cal-sec-dayhead.is-today');
         const corner = container.querySelector('.cal-sec-corner');
         if (today && corner) container.scrollLeft = today.offsetLeft - corner.offsetWidth;
+        showSecDayName(container);
       });
-      container.onscroll = () => { secScrollByWeek[weekKey] = container.scrollLeft; };
+      let ticking = false;
+      container.onscroll = () => {
+        secScrollByWeek[weekKey] = container.scrollLeft;
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => { ticking = false; showSecDayName(container); });
+      };
+    }
+    // Write the day in view ("Thu 29") into each section's bar, so you
+    // still know the day once the weekday header has scrolled away.
+    function showSecDayName(container) {
+      const heads = container.querySelectorAll('.cal-sec-dayhead');
+      const corner = container.querySelector('.cal-sec-corner');
+      if (!heads.length) return;
+      const x = container.scrollLeft + (corner ? corner.offsetWidth : 0);
+      let best = heads[0];
+      heads.forEach((h) => { if (Math.abs(h.offsetLeft - x) < Math.abs(best.offsetLeft - x)) best = h; });
+      const dow = best.querySelector('.cwg-dow');
+      const num = best.querySelector('.cwg-num');
+      const name = dow && num ? dow.textContent.charAt(0) + dow.textContent.slice(1).toLowerCase() + ' ' + num.textContent : '';
+      container.querySelectorAll('.cal-sec-dayname').forEach((el) => { el.textContent = name; });
     }
 
     // Build the section grid for one week into `container` (the .cal-grid).
@@ -1132,6 +1153,7 @@
         if (sec.color) label.style.backgroundColor = sec.color;
         label.innerHTML =
           '<span class="cal-sec-name" contenteditable="true" spellcheck="false"></span>' +
+          '<span class="cal-sec-dayname" aria-hidden="true"></span>' +
           '<div class="cal-sec-tools">' +
             '<button type="button" class="cal-sec-up" title="Move section up" aria-label="Move up">↑</button>' +
             '<button type="button" class="cal-sec-down" title="Move section down" aria-label="Move down">↓</button>' +
