@@ -1075,6 +1075,25 @@
       if (cellColorMenu.__outside) { document.removeEventListener('mousedown', cellColorMenu.__outside, true); cellColorMenu.__outside = null; }
     }
 
+    // On phones the section grid scrolls sideways a day at a time (see the
+    // phone block in calendar.css). Remember where each week was scrolled so
+    // a re-render doesn't jump it back; a week seen for the first time opens
+    // on today's column.
+    const secScrollByWeek = {};
+    function restoreSecScroll(container, weekKey) {
+      requestAnimationFrame(() => {
+        if (container.scrollWidth <= container.clientWidth + 1) return;
+        if (secScrollByWeek[weekKey] != null) {
+          container.scrollLeft = secScrollByWeek[weekKey];
+          return;
+        }
+        const today = container.querySelector('.cal-sec-dayhead.is-today');
+        const corner = container.querySelector('.cal-sec-corner');
+        if (today && corner) container.scrollLeft = today.offsetLeft - corner.offsetWidth;
+      });
+      container.onscroll = () => { secScrollByWeek[weekKey] = container.scrollLeft; };
+    }
+
     // Build the section grid for one week into `container` (the .cal-grid).
     function renderSectionGrid(days, container, todayKey) {
       const weekKey = days[0].key;
@@ -1182,6 +1201,7 @@
       add.textContent = '+ Add section';
       add.addEventListener('click', (e) => { e.stopPropagation(); addSection(weekKey); });
       container.appendChild(add);
+      restoreSecScroll(container, weekKey);
     }
 
     function renderMonthWeeks(view, weeksEl) {
